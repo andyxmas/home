@@ -8,6 +8,10 @@ Local-first personal command center for aggregated mentions and work signals.
 - Git repository initialized locally
 - Vitest + Testing Library configured
 - Minimal app shell in place (`Inbox`, `Settings`, `Sync now`)
+- Canonical notification contract frozen for v1 in `docs/notification-data-contract.md`
+- Source setup steps for Slack/GitHub/Shortcut in `docs/source-setup.md`
+- GitHub comment-text feasibility notes in `docs/github-comment-text-feasibility.md`
+- SQLite + Drizzle data layer foundations added (schema, migration, repositories)
 
 ## Local commands
 
@@ -38,8 +42,7 @@ Suggested branch split:
 
 ## Next implementation milestones
 
-1. Data schema + repositories (SQLite + Drizzle)
-2. Adapter contract + orchestrator
-3. Settings and inbox UI
-4. Service adapters (Slack/GitHub/Shortcut)
-5. End-to-end sync flow + smoke tests
+1. Adapter orchestrator + manual sync runner wiring
+2. Settings and inbox UI
+3. Service adapters (Slack/GitHub/Shortcut)
+4. End-to-end sync flow + smoke tests

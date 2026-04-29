@@ -14,7 +14,7 @@ export type GitHubServiceConfig = {
 }
 
 export type ShortcutServiceConfig = {
-  apiBaseUrl: string
+  apiBaseUrl?: string
 }
 
 export type SourceCredentialShape = {
@@ -58,6 +58,8 @@ export type CanonicalNotification = {
   source: SourceKind
   externalId: string
   dedupeKey: string
+  projectId?: string
+  fromPersonId?: string
   title: string
   body?: string
   url?: string

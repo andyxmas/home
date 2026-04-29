@@ -107,6 +107,8 @@ function mapSlackMessage(input: {
       isDirectMessage: isIm,
       ts,
       text,
+      user: message.user,
+      username: message.user,
     },
   }
 }
@@ -164,6 +166,7 @@ export function createSlackAdapter(options: CreateSlackAdapterOptions = {}): Sou
         const historyUrl = new URL('https://slack.com/api/conversations.history')
         historyUrl.searchParams.set('channel', channel.id)
         historyUrl.searchParams.set('limit', '200')
+        // TODO(sync-watermark): Apply `input.since` via Slack `oldest` and handle per-channel paging.
 
         const { data: history } = await requestJson<SlackHistoryResponse>({
           source: 'slack',

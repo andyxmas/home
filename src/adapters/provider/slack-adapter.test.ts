@@ -109,4 +109,31 @@ describe('slack adapter', () => {
       ),
     ).rejects.toThrow('service.slack.userId')
   })
+
+  it('currently ignores since until Slack oldest-based narrowing is implemented', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            channels: [{ id: 'C1', name: 'general', is_im: false }],
+            response_metadata: {},
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            messages: [{ ts: '1713456000.001', user: 'U999', text: 'hello <@U123>' }],
+          }),
+        ),
+      )
+
+    const adapter = createSlackAdapter({ fetchImpl: fetchMock as unknown as typeof fetch })
+    await adapter.fetchNotifications(makeSlackConfig(), { since: '2026-01-10T10:00:00.000Z' })
+
+    expect(fetchMock.mock.calls[1][0]).not.toContain('oldest=')
+  })
 })
