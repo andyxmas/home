@@ -17,6 +17,7 @@ import {
   createProjectRepository,
   createSourceConfigRepository,
   createSyncRunRepository,
+  createWorkRepository,
 } from '../data/repositories'
 import type { SourceConfig, SourceKind } from '../domain/notification'
 import type { Person } from '../domain/person'
@@ -36,6 +37,7 @@ export type LocalHomeService = ManualSyncService & {
     token: string
     slackUserId?: string
     slackWorkspaceUrl?: string
+    shortcutAllowedWorkflowStates?: string[]
     githubApiBaseUrl?: string
     githubParticipating?: boolean
   }): Promise<void>
@@ -101,6 +103,27 @@ export type LocalHomeService = ManualSyncService & {
       sinceUsed?: string
     }>
   >
+
+  listWorkItems(): Promise<
+    Array<{
+      id: string
+      kind: string
+      source: string
+      dedupeKey: string
+      externalId?: string
+      title: string
+      body?: string
+      url?: string
+      projectId?: string
+      column: string
+      position: number
+      createdAt: string
+      updatedAt: string
+    }>
+  >
+  createWorkFromNotification(input: { notificationId: string; column?: string }): Promise<void>
+  moveWorkItem(input: { id: string; column: string; position: number }): Promise<void>
+  reorderWorkColumn(input: { column: string; orderedIds: string[] }): Promise<void>
 }
 
 let singletonService: LocalHomeService | undefined
@@ -284,6 +307,7 @@ export function createLocalManualSyncService(): LocalHomeService {
   const personRepository = createPersonRepository(db)
   const projectRepository = createProjectRepository(db)
   const syncRunRepository = createSyncRunRepository(db)
+  const workRepository = createWorkRepository(db)
   const clearNotificationsService = createClearNotificationsService({
     notificationRepository,
     syncRunRepository,
@@ -356,7 +380,9 @@ export function createLocalManualSyncService(): LocalHomeService {
 
       if (input.source === 'shortcut') {
         credentials.service = {
-          shortcut: {},
+          shortcut: {
+            allowedWorkflowStates: input.shortcutAllowedWorkflowStates,
+          },
         }
       }
 
@@ -486,6 +512,46 @@ export function createLocalManualSyncService(): LocalHomeService {
         errorMessage: run.errorMessage ?? undefined,
         sinceUsed: run.sinceUsed ?? undefined,
       }))
+    },
+
+    async listWorkItems() {
+      const rows = await workRepository.listAll()
+      return rows
+    },
+
+    async createWorkFromNotification(input) {
+      const notificationRow = await db.query.notification.findFirst({
+        where: eq(notification.id, input.notificationId),
+      })
+      if (!notificationRow) {
+        throw new Error('Notification not found')
+      }
+
+      const column = input.column === 'today' || input.column === 'soon' || input.column === 'later' ? input.column : 'soon'
+      const dedupeKey = `work:notification_todo:${notificationRow.id}`
+
+      await workRepository.upsert({
+        kind: 'notification_todo',
+        source: 'notification',
+        dedupeKey,
+        externalId: notificationRow.id,
+        title: notificationRow.title,
+        body: notificationRow.body ?? undefined,
+        url: notificationRow.url ?? undefined,
+        projectId: notificationRow.projectId ?? undefined,
+        column,
+        position: Number.NaN,
+      })
+    },
+
+    async moveWorkItem(input) {
+      const column = input.column === 'today' || input.column === 'soon' || input.column === 'later' ? input.column : 'soon'
+      await workRepository.moveWorkItem(input.id, column, input.position)
+    },
+
+    async reorderWorkColumn(input) {
+      const column = input.column === 'today' || input.column === 'soon' || input.column === 'later' ? input.column : 'soon'
+      await workRepository.reorderColumn(column, input.orderedIds)
     },
   }
 

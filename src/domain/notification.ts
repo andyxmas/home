@@ -15,6 +15,7 @@ export type GitHubServiceConfig = {
 
 export type ShortcutServiceConfig = {
   apiBaseUrl?: string
+  allowedWorkflowStates?: string[]
 }
 
 export type SourceCredentialShape = {

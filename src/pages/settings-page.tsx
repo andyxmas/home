@@ -315,6 +315,22 @@ function SettingsSourcesPage(props: {
               </Label>
             </>
           ) : null}
+          {props.sourceForm.source === 'shortcut' ? (
+            <Label>
+              Shortcut workflow states to include (comma-separated)
+              <Input
+                aria-label="Shortcut workflow state allowlist"
+                placeholder="Ready for Work, In Progress, Rejected Review"
+                value={props.sourceForm.shortcutAllowedWorkflowStatesText}
+                onChange={(event) =>
+                  props.setSourceForm((current) => ({
+                    ...current,
+                    shortcutAllowedWorkflowStatesText: event.target.value,
+                  }))
+                }
+              />
+            </Label>
+          ) : null}
           {props.sourceForm.source === 'github' ? (
             <>
               <p>

@@ -31,6 +31,7 @@ export type SourceFormState = {
   slackWorkspaceUrl: string
   githubApiBaseUrl: string
   githubParticipating: boolean
+  shortcutAllowedWorkflowStatesText: string
 }
 
 export const defaultFormState: SourceFormState = {
@@ -43,6 +44,7 @@ export const defaultFormState: SourceFormState = {
   slackWorkspaceUrl: '',
   githubApiBaseUrl: '',
   githubParticipating: false,
+  shortcutAllowedWorkflowStatesText: '',
 }
 
 export type ProjectFormState = {
@@ -125,7 +127,16 @@ function mapConfigToForm(config: SourceConfig): SourceFormState {
     slackWorkspaceUrl: config.credentials.service?.slack?.workspaceUrl ?? '',
     githubApiBaseUrl: config.credentials.service?.github?.apiBaseUrl ?? '',
     githubParticipating: config.credentials.service?.github?.participating ?? false,
+    shortcutAllowedWorkflowStatesText: (config.credentials.service?.shortcut?.allowedWorkflowStates ?? []).join(', '),
   }
+}
+
+function parseShortcutAllowedWorkflowStates(value: string): string[] | undefined {
+  const normalized = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  return normalized.length > 0 ? normalized : undefined
 }
 
 function parseDelimitedValues(value: string): string[] {
@@ -362,6 +373,10 @@ export function useHomeState() {
         token: sourceForm.token.trim(),
         slackUserId: sourceForm.source === 'slack' ? sourceForm.slackUserId.trim() : undefined,
         slackWorkspaceUrl: sourceForm.source === 'slack' ? sourceForm.slackWorkspaceUrl.trim() : undefined,
+        shortcutAllowedWorkflowStates:
+          sourceForm.source === 'shortcut'
+            ? parseShortcutAllowedWorkflowStates(sourceForm.shortcutAllowedWorkflowStatesText)
+            : undefined,
         githubApiBaseUrl: sourceForm.source === 'github' ? sourceForm.githubApiBaseUrl.trim() : undefined,
         githubParticipating: sourceForm.source === 'github' ? sourceForm.githubParticipating : undefined,
       })
@@ -408,6 +423,8 @@ export function useHomeState() {
         token: form.token,
         slackUserId: form.source === 'slack' ? form.slackUserId : undefined,
         slackWorkspaceUrl: form.source === 'slack' ? form.slackWorkspaceUrl : undefined,
+        shortcutAllowedWorkflowStates:
+          form.source === 'shortcut' ? parseShortcutAllowedWorkflowStates(form.shortcutAllowedWorkflowStatesText) : undefined,
         githubApiBaseUrl: form.source === 'github' ? form.githubApiBaseUrl : undefined,
         githubParticipating: form.source === 'github' ? form.githubParticipating : undefined,
       })

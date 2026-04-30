@@ -13,6 +13,7 @@ type SourceConfigInput = {
   token: string
   slackUserId?: string
   slackWorkspaceUrl?: string
+  shortcutAllowedWorkflowStates?: string[]
   githubApiBaseUrl?: string
   githubParticipating?: boolean
 }
