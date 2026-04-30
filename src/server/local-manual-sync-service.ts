@@ -21,7 +21,9 @@ import {
   createWorkRepository,
 } from '../data/repositories'
 import { notification } from '../data/db/schema'
+import { syncShortcutWork } from '../application/work/shortcut-work-sync'
 import type { WorkColumn, WorkItem } from '../domain/work'
+import { syncShortcutWorkItems } from '../application/work/shortcut-work-sync-service'
 import type { SourceConfig, SourceKind } from '../domain/notification'
 import type { Person } from '../domain/person'
 import type { Project, ProjectMetadata } from '../domain/project'
@@ -334,11 +336,38 @@ export function createLocalManualSyncService(): LocalHomeService {
   })
 
   singletonService = {
-    runManualSync() {
-      return orchestrator.syncAllSources()
+    async runManualSync() {
+      const result = await orchestrator.syncAllSources()
+      try {
+        await syncShortcutWorkItems({
+          db,
+          workRepository,
+          personRepository,
+          projectRepository,
+          sourceConfigs: await sourceConfigRepository.listEnabled(),
+        })
+      } catch (cause) {
+        // Non-fatal: work sync should not fail the main notification sync loop in v1.
+        console.warn('Work sync failed', cause)
+      }
+      return result
     },
-    runManualSyncForSource(source, instanceKey) {
-      return orchestrator.syncSingleSource({ source, instanceKey })
+    async runManualSyncForSource(source, instanceKey) {
+      const result = await orchestrator.syncSingleSource({ source, instanceKey })
+      if (source === 'shortcut') {
+        try {
+          await syncShortcutWorkItems({
+            db,
+            workRepository,
+            personRepository,
+            projectRepository,
+            sourceConfigs: await sourceConfigRepository.listEnabled(),
+          })
+        } catch (cause) {
+          console.warn('Work sync failed', cause)
+        }
+      }
+      return result
     },
     runReplaySync() {
       return orchestrator.replayAllSources()

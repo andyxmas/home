@@ -87,9 +87,7 @@ export function createWorkRepository(db: HomeDb, clock: Clock = defaultClock) {
             body: input.body ?? null,
             url: input.url ?? null,
             projectId: input.projectId ?? null,
-            // preserve user-controlled column/position unless explicitly provided
-            ...(input.column ? { column: input.column } : {}),
-            ...(input.position == null ? {} : { position }),
+            // Preserve user-controlled column/position on conflict.
             updatedAt: now,
           },
         })
