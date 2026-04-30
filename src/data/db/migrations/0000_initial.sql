@@ -105,6 +105,27 @@ CREATE TABLE `sync_run` (
 );
 --> statement-breakpoint
 
+CREATE TABLE `work_item` (
+  `id` text PRIMARY KEY NOT NULL,
+  `kind` text NOT NULL,
+  `source` text NOT NULL,
+  `dedupe_key` text NOT NULL,
+  `external_id` text,
+  `title` text NOT NULL,
+  `body` text,
+  `url` text,
+  `project_id` text,
+  `column` text NOT NULL,
+  `position` integer DEFAULT 0 NOT NULL,
+  `created_at` integer NOT NULL,
+  `updated_at` integer NOT NULL,
+  UNIQUE(`dedupe_key`),
+  FOREIGN KEY (`project_id`) REFERENCES `project` (`id`) ON DELETE SET NULL
+);
+--> statement-breakpoint
+CREATE INDEX `work_item_column_position_idx` ON `work_item` (`column`, `position`);
+--> statement-breakpoint
+
 CREATE TABLE `archive_notification` (
   `id` text PRIMARY KEY NOT NULL,
   `original_notification_id` text NOT NULL,

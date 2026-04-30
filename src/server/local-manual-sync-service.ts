@@ -233,6 +233,29 @@ function applyPersonSchemaPatches(sqlite: Database.Database): void {
   }
 }
 
+function applyWorkItemSchemaPatches(sqlite: Database.Database): void {
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS work_item (
+      id text PRIMARY KEY NOT NULL,
+      kind text NOT NULL,
+      source text NOT NULL,
+      dedupe_key text NOT NULL,
+      external_id text,
+      title text NOT NULL,
+      body text,
+      url text,
+      project_id text,
+      column text NOT NULL,
+      position integer DEFAULT 0 NOT NULL,
+      created_at integer NOT NULL,
+      updated_at integer NOT NULL,
+      UNIQUE(dedupe_key),
+      FOREIGN KEY (project_id) REFERENCES project (id) ON DELETE SET NULL
+    )
+  `)
+  sqlite.exec('CREATE INDEX IF NOT EXISTS work_item_column_position_idx ON work_item (column, position)')
+}
+
 export function createLocalManualSyncService(): LocalHomeService {
   if (singletonService) {
     return singletonService
@@ -248,6 +271,7 @@ export function createLocalManualSyncService(): LocalHomeService {
   applySyncRunSchemaPatches(sqlite)
   applyProjectSchemaPatches(sqlite)
   applyPersonSchemaPatches(sqlite)
+  applyWorkItemSchemaPatches(sqlite)
 
   const sourceConfigRepository = createSourceConfigRepository(db)
   const notificationRepository = createNotificationRepository(db)
