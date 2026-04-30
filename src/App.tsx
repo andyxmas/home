@@ -92,6 +92,7 @@ function App() {
               onSelectViewMode={state.setSelectedViewMode}
               onToggleRead={state.onToggleRead}
               onMarkAllRead={state.onMarkAllRead}
+              onMarkTodo={state.onMarkInboxItemTodo}
             />
           }
         />
@@ -119,6 +120,7 @@ function App() {
               onSelectViewMode={state.setSelectedViewMode}
               onToggleRead={state.onToggleRead}
               onMarkAllRead={state.onMarkAllRead}
+              onMarkTodo={state.onMarkInboxItemTodo}
             />
           }
         />

@@ -12,7 +12,7 @@ import {
   setInboxReadState,
   type InboxItem,
 } from '../../api/inbox'
-import { listWorkItems, moveWorkItem, reorderWorkColumn } from '../../api/work'
+import { createWorkFromNotification, listWorkItems, moveWorkItem, reorderWorkColumn } from '../../api/work'
 import { deletePerson, listPeople, savePerson } from '../../api/people'
 import { listSyncHistory, type SyncHistoryEntry } from '../../api/sync-history'
 import { deleteSourceConfig, listSourceConfigs, saveSourceConfig } from '../../api/sources'
@@ -206,6 +206,7 @@ export function useHomeState() {
   const [inboxNotice, setInboxNotice] = useState<string | null>(null)
   const [workItems, setWorkItems] = useState<WorkItem[]>([])
   const [workError, setWorkError] = useState<string | null>(null)
+  const [isMarkingTodo, setIsMarkingTodo] = useState<Record<string, boolean>>({})
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false)
   const [isClearingNotifications, setIsClearingNotifications] = useState(false)
   const [syncHistory, setSyncHistory] = useState<SyncHistoryEntry[]>([])
@@ -483,6 +484,23 @@ export function useHomeState() {
     }
   }
 
+  const onMarkInboxItemTodo = async (item: InboxItem) => {
+    setInboxError(null)
+    setInboxNotice(null)
+    setWorkError(null)
+    setIsMarkingTodo((current) => ({ ...current, [item.id]: true }))
+    try {
+      await createWorkFromNotification(item.id)
+      await refreshWork()
+      setInboxNotice('Added to Work.')
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Failed to add to Work.'
+      setInboxError(message)
+    } finally {
+      setIsMarkingTodo((current) => ({ ...current, [item.id]: false }))
+    }
+  }
+
   const onMarkAllRead = async () => {
     setInboxError(null)
     setInboxNotice(null)
@@ -700,6 +718,7 @@ export function useHomeState() {
     inboxItems: filteredInboxItems,
     inboxError,
     inboxNotice,
+    isMarkingTodo,
     workItems,
     workError,
     isMarkingAllRead,
@@ -734,6 +753,7 @@ export function useHomeState() {
     onToggleEnabled,
     onToggleRead,
     onMarkAllRead,
+    onMarkInboxItemTodo,
     onMoveWorkItem,
     onReorderWorkColumn,
     onSaveProject,

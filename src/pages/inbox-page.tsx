@@ -25,6 +25,7 @@ type InboxPageProps = {
   onSelectViewMode: (value: InboxViewMode) => void
   onToggleRead: (item: InboxItem) => Promise<void>
   onMarkAllRead: () => Promise<void>
+  onMarkTodo: (item: InboxItem) => Promise<void>
 }
 
 export function InboxPage({
@@ -45,6 +46,7 @@ export function InboxPage({
   onSelectViewMode,
   onToggleRead,
   onMarkAllRead,
+  onMarkTodo,
 }: InboxPageProps) {
   const isCondensed = selectedViewMode === 'condensed'
 
@@ -209,6 +211,9 @@ export function InboxPage({
                   <div className="item-actions">
                     <Button type="button" variant="outline" onClick={() => onToggleRead(item)}>
                       Mark as {item.isRead ? 'unread' : 'read'}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => void onMarkTodo(item)}>
+                      Todo
                     </Button>
                   </div>
                 ) : null}
