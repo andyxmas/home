@@ -6,7 +6,7 @@ type WorkResponse = {
 }
 
 type CreateFromNotificationResponse = {
-  workItemId?: string
+  item?: WorkItem
   error?: string
 }
 
@@ -29,16 +29,10 @@ export async function createWorkFromNotification(notificationId: string): Promis
   if (!response.ok) {
     throw new Error(payload.error ?? 'Failed to create work item')
   }
-  if (!payload.workItemId) {
-    throw new Error('workItemId was not returned')
+  if (!payload.item) {
+    throw new Error('Created work item was not returned')
   }
-
-  const items = await listWorkItems()
-  const created = items.find((item) => item.id === payload.workItemId)
-  if (!created) {
-    throw new Error('Created work item not found after refresh')
-  }
-  return created
+  return payload.item
 }
 
 export async function moveWorkItem(input: { id: string; column: WorkColumn; position: number }): Promise<void> {
@@ -63,5 +57,37 @@ export async function reorderWorkColumn(input: { column: WorkColumn; orderedIds:
     const payload = (await response.json().catch(() => ({}))) as { error?: string }
     throw new Error(payload.error ?? 'Failed to reorder work column')
   }
+}
+
+export async function clearAllWorkItems(): Promise<{ clearedWorkItems: number }> {
+  const response = await fetch('/api/work/clear-all', {
+    method: 'POST',
+  })
+  const payload = (await response.json().catch(() => ({}))) as { error?: string; clearedWorkItems?: number }
+  if (!response.ok) {
+    throw new Error(payload.error ?? 'Failed to clear work items')
+  }
+  return { clearedWorkItems: payload.clearedWorkItems ?? 0 }
+}
+
+export type ShortcutWorkSyncResult = {
+  totalSources: number
+  succeededSources: number
+  failedSources: number
+  totalUpserted: number
+  sources: Array<{ source: 'shortcut'; instanceKey: string; status: 'success' | 'failed'; upserted: number; error?: string }>
+}
+
+export async function syncShortcutWorkItems(instanceKey?: string): Promise<ShortcutWorkSyncResult> {
+  const response = await fetch('/api/work/sync-shortcut', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ instanceKey }),
+  })
+  const payload = (await response.json().catch(() => ({}))) as ShortcutWorkSyncResult & { error?: string }
+  if (!response.ok) {
+    throw new Error(payload.error ?? 'Failed to sync work items')
+  }
+  return payload
 }
 

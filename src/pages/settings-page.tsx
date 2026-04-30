@@ -47,6 +47,10 @@ type SettingsPageProps = {
   onDeletePerson: (person: Person) => Promise<void>
   onClearNotifications: () => Promise<void>
   isClearingNotifications: boolean
+  onClearWorkItems: () => Promise<void>
+  isClearingWorkItems: boolean
+  onSyncShortcutWorkSource: (config: SourceConfig) => Promise<void>
+  syncingWorkSourceKeys: Record<string, boolean>
   syncHistoryError: string | null
   syncHistory: SyncHistoryEntry[]
 }
@@ -122,6 +126,10 @@ export function SettingsPage({
   onDeletePerson,
   onClearNotifications,
   isClearingNotifications,
+  onClearWorkItems,
+  isClearingWorkItems,
+  onSyncShortcutWorkSource,
+  syncingWorkSourceKeys,
   syncHistoryError,
   syncHistory,
 }: SettingsPageProps) {
@@ -156,6 +164,10 @@ export function SettingsPage({
               onDeleteSource={onDeleteSource}
               onClearNotifications={onClearNotifications}
               isClearingNotifications={isClearingNotifications}
+              onClearWorkItems={onClearWorkItems}
+              isClearingWorkItems={isClearingWorkItems}
+              onSyncShortcutWorkSource={onSyncShortcutWorkSource}
+              syncingWorkSourceKeys={syncingWorkSourceKeys}
               settingsError={settingsError}
               settingsNotice={settingsNotice}
             />
@@ -224,6 +236,10 @@ function SettingsSourcesPage(props: {
   onDeleteSource: (config: SourceConfig) => Promise<void>
   onClearNotifications: () => Promise<void>
   isClearingNotifications: boolean
+  onClearWorkItems: () => Promise<void>
+  isClearingWorkItems: boolean
+  onSyncShortcutWorkSource: (config: SourceConfig) => Promise<void>
+  syncingWorkSourceKeys: Record<string, boolean>
   settingsError: string | null
   settingsNotice: string | null
 }) {
@@ -320,7 +336,7 @@ function SettingsSourcesPage(props: {
               Shortcut workflow states to include (comma-separated)
               <Input
                 aria-label="Shortcut workflow state allowlist"
-                placeholder="Ready for Work, In Progress, Rejected Review"
+                placeholder="💻 Ready for Work, ⚒ In Progress, ❌ Rejected Review"
                 value={props.sourceForm.shortcutAllowedWorkflowStatesText}
                 onChange={(event) =>
                   props.setSourceForm((current) => ({
@@ -366,9 +382,22 @@ function SettingsSourcesPage(props: {
           <Button type="submit">Save source</Button>
         </form>
         <SettingsFeedback settingsError={props.settingsError} settingsNotice={props.settingsNotice} />
+        <p>
+          Work sync is separate from notification cleanup. You can sync Work any time without deleting notifications.
+        </p>
         <div className="row-actions">
           <Button type="button" variant="destructive" onClick={() => setIsClearModalOpen(true)}>
             Clear all notifications
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => {
+              void props.onClearWorkItems()
+            }}
+            disabled={props.isClearingWorkItems}
+          >
+            {props.isClearingWorkItems ? 'Clearing Work...' : 'Clear all Work items'}
           </Button>
         </div>
         {isClearModalOpen ? (
@@ -450,6 +479,21 @@ function SettingsSourcesPage(props: {
                     >
                       {props.replayingSourceKeys[sourceKey] ? 'Replaying...' : 'Dev replay'}
                     </Button>
+                    {config.source === 'shortcut' ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => props.onSyncShortcutWorkSource(config)}
+                        disabled={
+                          props.isSyncing ||
+                          props.syncingSourceKeys[sourceKey] ||
+                          props.replayingSourceKeys[sourceKey] ||
+                          props.syncingWorkSourceKeys[sourceKey]
+                        }
+                      >
+                        {props.syncingWorkSourceKeys[sourceKey] ? 'Syncing Work...' : 'Sync Work (dev)'}
+                      </Button>
+                    ) : null}
                     <Button type="button" variant="outline" onClick={() => props.onToggleEnabled(config)}>
                       {config.enabled ? 'Disable' : 'Enable'}
                     </Button>

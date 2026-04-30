@@ -59,7 +59,8 @@ function App() {
         <Alert>
           <AlertDescription>
             Synced {state.result.totalSources} source(s). Success: {state.result.succeededSources}, Failed:{' '}
-            {state.result.failedSources}, Upserted notifications: {state.result.totalUpserted}.
+            {state.result.failedSources}, Upserted notifications: {state.result.totalUpserted}
+            {state.result.workSync ? `, Upserted work: ${state.result.workSync.totalUpserted}` : ''}.
           </AlertDescription>
         </Alert>
       ) : (
@@ -169,6 +170,10 @@ function App() {
               onDeletePerson={state.onDeletePerson}
               onClearNotifications={state.onClearNotifications}
               isClearingNotifications={state.isClearingNotifications}
+              onClearWorkItems={state.onClearWorkItems}
+              isClearingWorkItems={state.isClearingWorkItems}
+              onSyncShortcutWorkSource={state.onSyncShortcutWorkSource}
+              syncingWorkSourceKeys={state.syncingWorkSourceKeys}
               syncHistoryError={state.syncHistoryError}
               syncHistory={state.syncHistory}
             />

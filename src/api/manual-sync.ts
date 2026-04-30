@@ -5,7 +5,17 @@ type ErrorPayload = {
   error?: string
 }
 
-export async function triggerManualSync(): Promise<SyncAllSourcesResult> {
+export type ManualSyncResult = SyncAllSourcesResult & {
+  workSync?: {
+    totalSources: number
+    succeededSources: number
+    failedSources: number
+    totalUpserted: number
+    sources: Array<{ source: 'shortcut'; instanceKey: string; status: 'success' | 'failed'; upserted: number; error?: string }>
+  }
+}
+
+export async function triggerManualSync(): Promise<ManualSyncResult> {
   const response = await fetch('/api/sync/manual', {
     method: 'POST',
   })
@@ -15,13 +25,13 @@ export async function triggerManualSync(): Promise<SyncAllSourcesResult> {
     throw new Error(payload.error ?? 'Manual sync failed')
   }
 
-  return (await response.json()) as SyncAllSourcesResult
+  return (await response.json()) as ManualSyncResult
 }
 
 export async function triggerSourceManualSync(
   source: SourceKind,
   instanceKey: string,
-): Promise<SyncAllSourcesResult> {
+): Promise<ManualSyncResult> {
   const response = await fetch('/api/sync/manual', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -33,7 +43,7 @@ export async function triggerSourceManualSync(
     throw new Error(payload.error ?? 'Source sync failed')
   }
 
-  return (await response.json()) as SyncAllSourcesResult
+  return (await response.json()) as ManualSyncResult
 }
 
 export async function triggerReplaySync(): Promise<SyncAllSourcesResult> {

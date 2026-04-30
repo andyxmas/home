@@ -10,10 +10,10 @@ function defaultClock(): Date {
 }
 
 function asWorkColumn(value: string): WorkColumn {
-  if (value === 'today' || value === 'soon' || value === 'later') {
+  if (value === 'unassigned' || value === 'today' || value === 'soon' || value === 'later') {
     return value
   }
-  return 'soon'
+  return 'unassigned'
 }
 
 export function createWorkRepository(db: HomeDb, clock: Clock = defaultClock) {
@@ -137,6 +137,15 @@ export function createWorkRepository(db: HomeDb, clock: Clock = defaultClock) {
           .set({ position: index, updatedAt: now })
           .where(eq(workItem.id, orderedIds[index]))
       }
+    },
+
+    async clearAll(): Promise<number> {
+      const [summary] = await db.select({ count: sql<number>`count(*)` }).from(workItem)
+      const total = Number(summary?.count ?? 0)
+      if (total > 0) {
+        await db.delete(workItem)
+      }
+      return total
     },
   }
 }

@@ -21,10 +21,9 @@ import {
   createWorkRepository,
 } from '../data/repositories'
 import { notification } from '../data/db/schema'
-import { syncShortcutWork } from '../application/work/shortcut-work-sync'
 import type { WorkColumn, WorkItem } from '../domain/work'
 import { syncShortcutWorkItems } from '../application/work/shortcut-work-sync-service'
-import type { SourceConfig, SourceKind } from '../domain/notification'
+import { DEFAULT_SHORTCUT_ALLOWED_WORKFLOW_STATES, type SourceConfig, type SourceKind } from '../domain/notification'
 import type { Person } from '../domain/person'
 import type { Project, ProjectMetadata } from '../domain/project'
 import type { ManualSyncService } from './manual-sync-endpoint'
@@ -113,9 +112,15 @@ export type LocalHomeService = ManualSyncService & {
   createWorkFromNotification(input: { notificationId: string; column?: import('../domain/work').WorkColumn }): Promise<WorkItem>
   moveWorkItem(input: { id: string; column: import('../domain/work').WorkColumn; position: number }): Promise<void>
   reorderWorkColumn(input: { column: import('../domain/work').WorkColumn; orderedIds: string[] }): Promise<void>
+  clearAllWorkItems(): Promise<{ clearedWorkItems: number }>
+  syncShortcutWorkItems(instanceKey?: string): ReturnType<typeof syncShortcutWorkItems>
 }
 
 let singletonService: LocalHomeService | undefined
+
+function normalizeWorkColumn(column: WorkColumn | undefined, fallback: WorkColumn = 'unassigned'): WorkColumn {
+  return column === 'unassigned' || column === 'today' || column === 'soon' || column === 'later' ? column : fallback
+}
 
 function applyInitialMigrationIfNeeded(sqlite: Database.Database): void {
   const tableExists = sqlite
@@ -339,13 +344,14 @@ export function createLocalManualSyncService(): LocalHomeService {
     async runManualSync() {
       const result = await orchestrator.syncAllSources()
       try {
-        await syncShortcutWorkItems({
+        const workSync = await syncShortcutWorkItems({
           db,
           workRepository,
           personRepository,
           projectRepository,
           sourceConfigs: await sourceConfigRepository.listEnabled(),
         })
+        return { ...result, workSync }
       } catch (cause) {
         // Non-fatal: work sync should not fail the main notification sync loop in v1.
         console.warn('Work sync failed', cause)
@@ -356,13 +362,16 @@ export function createLocalManualSyncService(): LocalHomeService {
       const result = await orchestrator.syncSingleSource({ source, instanceKey })
       if (source === 'shortcut') {
         try {
-          await syncShortcutWorkItems({
+          const workSync = await syncShortcutWorkItems({
             db,
             workRepository,
             personRepository,
             projectRepository,
-            sourceConfigs: await sourceConfigRepository.listEnabled(),
+            sourceConfigs: (await sourceConfigRepository.listEnabled()).filter(
+              (item) => item.source === 'shortcut' && item.instanceKey === instanceKey,
+            ),
           })
+          return { ...result, workSync }
         } catch (cause) {
           console.warn('Work sync failed', cause)
         }
@@ -397,7 +406,10 @@ export function createLocalManualSyncService(): LocalHomeService {
       if (input.source === 'shortcut') {
         credentials.service = {
           shortcut: {
-            allowedWorkflowStates: input.shortcutAllowedWorkflowStates,
+            allowedWorkflowStates:
+              input.shortcutAllowedWorkflowStates && input.shortcutAllowedWorkflowStates.length > 0
+                ? input.shortcutAllowedWorkflowStates
+                : DEFAULT_SHORTCUT_ALLOWED_WORKFLOW_STATES,
           },
         }
       }
@@ -543,8 +555,7 @@ export function createLocalManualSyncService(): LocalHomeService {
         throw new Error('Notification not found')
       }
 
-      const column: WorkColumn =
-        input.column === 'today' || input.column === 'soon' || input.column === 'later' ? input.column : 'soon'
+      const column = normalizeWorkColumn(input.column, 'soon')
       const dedupeKey = `work:notification_todo:${notificationRow.id}`
 
       const saved = await workRepository.upsert({
@@ -577,13 +588,30 @@ export function createLocalManualSyncService(): LocalHomeService {
     },
 
     async moveWorkItem(input) {
-      const column = input.column === 'today' || input.column === 'soon' || input.column === 'later' ? input.column : 'soon'
+      const column = normalizeWorkColumn(input.column)
       await workRepository.moveWorkItem(input.id, column, input.position)
     },
 
     async reorderWorkColumn(input) {
-      const column = input.column === 'today' || input.column === 'soon' || input.column === 'later' ? input.column : 'soon'
+      const column = normalizeWorkColumn(input.column)
       await workRepository.reorderColumn(column, input.orderedIds)
+    },
+
+    async clearAllWorkItems() {
+      const clearedWorkItems = await workRepository.clearAll()
+      return { clearedWorkItems }
+    },
+
+    async syncShortcutWorkItems(instanceKey) {
+      return syncShortcutWorkItems({
+        db,
+        workRepository,
+        personRepository,
+        projectRepository,
+        sourceConfigs: (await sourceConfigRepository.listEnabled()).filter(
+          (config) => config.source === 'shortcut' && (!instanceKey || config.instanceKey === instanceKey),
+        ),
+      })
     },
   }
 

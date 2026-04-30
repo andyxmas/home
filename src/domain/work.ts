@@ -1,6 +1,6 @@
 export type WorkKind = 'shortcut_story_assigned' | 'shortcut_code_review' | 'notification_todo'
 
-export type WorkColumn = 'today' | 'soon' | 'later'
+export type WorkColumn = 'unassigned' | 'today' | 'soon' | 'later'
 
 export type WorkSource = 'shortcut' | 'notification'
 

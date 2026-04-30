@@ -1,5 +1,11 @@
 export type SourceKind = 'slack' | 'github' | 'shortcut'
 
+export const DEFAULT_SHORTCUT_ALLOWED_WORKFLOW_STATES = [
+  '💻 Ready for Work',
+  '⚒ In Progress',
+  '❌ Rejected Review',
+]
+
 export type SlackServiceConfig = {
   userId: string
   workspaceUrl?: string

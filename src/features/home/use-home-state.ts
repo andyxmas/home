@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
+  type ManualSyncResult,
   triggerManualSync,
   triggerReplaySync,
   triggerSourceManualSync,
@@ -12,13 +13,19 @@ import {
   setInboxReadState,
   type InboxItem,
 } from '../../api/inbox'
-import { createWorkFromNotification, listWorkItems, moveWorkItem, reorderWorkColumn } from '../../api/work'
+import {
+  clearAllWorkItems,
+  createWorkFromNotification,
+  listWorkItems,
+  moveWorkItem,
+  reorderWorkColumn,
+  syncShortcutWorkItems,
+} from '../../api/work'
 import { deletePerson, listPeople, savePerson } from '../../api/people'
 import { listSyncHistory, type SyncHistoryEntry } from '../../api/sync-history'
 import { deleteSourceConfig, listSourceConfigs, saveSourceConfig } from '../../api/sources'
 import { deleteProject, listProjects, saveProject } from '../../api/projects'
-import type { SyncAllSourcesResult } from '../../application/sync/sync-orchestrator'
-import type { SourceConfig, SourceKind } from '../../domain/notification'
+import { DEFAULT_SHORTCUT_ALLOWED_WORKFLOW_STATES, type SourceConfig, type SourceKind } from '../../domain/notification'
 import type { Person } from '../../domain/person'
 import type { Project, ProjectMetadata } from '../../domain/project'
 import type { WorkColumn, WorkItem } from '../../domain/work'
@@ -129,7 +136,11 @@ function mapConfigToForm(config: SourceConfig): SourceFormState {
     slackWorkspaceUrl: config.credentials.service?.slack?.workspaceUrl ?? '',
     githubApiBaseUrl: config.credentials.service?.github?.apiBaseUrl ?? '',
     githubParticipating: config.credentials.service?.github?.participating ?? false,
-    shortcutAllowedWorkflowStatesText: (config.credentials.service?.shortcut?.allowedWorkflowStates ?? []).join(', '),
+    shortcutAllowedWorkflowStatesText: (
+      config.source === 'shortcut'
+        ? (config.credentials.service?.shortcut?.allowedWorkflowStates ?? DEFAULT_SHORTCUT_ALLOWED_WORKFLOW_STATES)
+        : []
+    ).join(', '),
   }
 }
 
@@ -177,7 +188,7 @@ function mapPersonToForm(person: Person): PersonFormState {
 export function useHomeState() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [isReplaying, setIsReplaying] = useState(false)
-  const [result, setResult] = useState<SyncAllSourcesResult | null>(null)
+  const [result, setResult] = useState<ManualSyncResult | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [syncingSourceKeys, setSyncingSourceKeys] = useState<Record<string, boolean>>({})
   const [replayingSourceKeys, setReplayingSourceKeys] = useState<Record<string, boolean>>({})
@@ -209,6 +220,8 @@ export function useHomeState() {
   const [isMarkingTodo, setIsMarkingTodo] = useState<Record<string, boolean>>({})
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false)
   const [isClearingNotifications, setIsClearingNotifications] = useState(false)
+  const [isClearingWorkItems, setIsClearingWorkItems] = useState(false)
+  const [syncingWorkSourceKeys, setSyncingWorkSourceKeys] = useState<Record<string, boolean>>({})
   const [syncHistory, setSyncHistory] = useState<SyncHistoryEntry[]>([])
   const [syncHistoryError, setSyncHistoryError] = useState<string | null>(null)
 
@@ -217,13 +230,21 @@ export function useHomeState() {
     [sourceSyncStatus],
   )
 
-  const applySourceStatuses = (syncResult: SyncAllSourcesResult, verb: 'Synced' | 'Replayed') => {
+  const applySourceStatuses = (syncResult: ManualSyncResult, verb: 'Synced' | 'Replayed') => {
+    const workBySource = new Map<string, number>()
+    for (const source of syncResult.workSync?.sources ?? []) {
+      workBySource.set(`${source.source}:${source.instanceKey}`, source.upserted)
+    }
     setSourceSyncStatus((current) => {
       const next = { ...current }
       for (const sourceResult of syncResult.sources) {
         const key = `${sourceResult.source}:${sourceResult.instanceKey}`
+        const workUpserted = workBySource.get(key)
         next[key] = {
-          label: sourceResult.status === 'success' ? `${verb} ${sourceResult.upsertedCount} items` : `${verb} failed`,
+          label:
+            sourceResult.status === 'success'
+              ? `${verb} ${sourceResult.upsertedCount} notifications${typeof workUpserted === 'number' ? `, ${workUpserted} work` : ''}`
+              : `${verb} failed`,
           error: sourceResult.error,
         }
       }
@@ -294,6 +315,11 @@ export function useHomeState() {
       const syncResult = await triggerManualSync()
       setResult(syncResult)
       applySourceStatuses(syncResult, 'Synced')
+      if (syncResult.workSync) {
+        setSettingsNotice(
+          `Work sync updated ${syncResult.workSync.totalUpserted} item(s) across ${syncResult.workSync.succeededSources}/${syncResult.workSync.totalSources} Shortcut source(s). You do not need to clear notifications to resync Work.`,
+        )
+      }
       setInboxError(null)
       setSyncHistoryError(null)
       await Promise.all([refreshInbox(), refreshWork(), refreshSyncHistory()])
@@ -314,6 +340,16 @@ export function useHomeState() {
       const syncResult = await triggerSourceManualSync(config.source, config.instanceKey)
       setResult(syncResult)
       applySourceStatuses(syncResult, 'Synced')
+      if (syncResult.workSync) {
+        const first = syncResult.workSync.sources[0]
+        if (first) {
+          const summary =
+            first.status === 'success'
+              ? `Synced ${first.upserted} Work item(s) for ${config.displayName}.`
+              : `Work sync failed for ${config.displayName}: ${first.error ?? 'unknown error'}`
+          setSettingsNotice(`${summary} You do not need to clear notifications to resync Work.`)
+        }
+      }
       setInboxError(null)
       setSyncHistoryError(null)
       await Promise.all([refreshInbox(), refreshWork(), refreshSyncHistory()])
@@ -614,12 +650,65 @@ export function useHomeState() {
       const result = await clearAllInboxItems()
       await Promise.all([refreshInbox(), refreshSyncHistory()])
       setSettingsNotice(
-        `Cleared ${result.clearedNotifications} notifications, ${result.clearedReadStates} read-state records, ${result.clearedSyncHistory} sync history rows, and reset ${result.resetWatermarks} source watermark(s).`,
+        `Cleared ${result.clearedNotifications} notifications, ${result.clearedReadStates} read-state records, ${result.clearedSyncHistory} sync history rows, and reset ${result.resetWatermarks} source watermark(s). Work items were not deleted.`,
       )
     } catch (cause) {
       setSettingsError(cause instanceof Error ? cause.message : 'Failed to clear notifications.')
     } finally {
       setIsClearingNotifications(false)
+    }
+  }
+
+  const onClearWorkItems = async () => {
+    setIsClearingWorkItems(true)
+    setSettingsError(null)
+    setSettingsNotice(null)
+    setWorkError(null)
+    try {
+      const result = await clearAllWorkItems()
+      await refreshWork()
+      setSettingsNotice(`Cleared ${result.clearedWorkItems} Work item(s). Notifications were not changed.`)
+    } catch (cause) {
+      setSettingsError(cause instanceof Error ? cause.message : 'Failed to clear work items.')
+    } finally {
+      setIsClearingWorkItems(false)
+    }
+  }
+
+  const onSyncShortcutWorkSource = async (config: SourceConfig) => {
+    const sourceKey = `${config.source}:${config.instanceKey}`
+    setSyncingWorkSourceKeys((current) => ({ ...current, [sourceKey]: true }))
+    setSettingsError(null)
+    setSettingsNotice(null)
+    try {
+      const result = await syncShortcutWorkItems(config.instanceKey)
+      await refreshWork()
+      const sourceResult = result.sources[0]
+      if (sourceResult?.status === 'failed') {
+        setSourceSyncStatus((current) => ({
+          ...current,
+          [sourceKey]: { label: 'Work sync failed', error: sourceResult.error ?? 'Unknown work sync error' },
+        }))
+        setSettingsError(sourceResult.error ?? 'Work sync failed.')
+        return
+      }
+      const syncedCount = sourceResult?.upserted ?? 0
+      setSourceSyncStatus((current) => ({
+        ...current,
+        [sourceKey]: { label: `Work synced ${syncedCount} item(s)` },
+      }))
+      setSettingsNotice(
+        `Synced ${syncedCount} Work item(s) for ${config.displayName}. This sync is independent from notification deletion.`,
+      )
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Work sync failed'
+      setSourceSyncStatus((current) => ({
+        ...current,
+        [sourceKey]: { label: 'Work sync failed', error: message },
+      }))
+      setSettingsError(message)
+    } finally {
+      setSyncingWorkSourceKeys((current) => ({ ...current, [sourceKey]: false }))
     }
   }
 
@@ -723,6 +812,8 @@ export function useHomeState() {
     workError,
     isMarkingAllRead,
     isClearingNotifications,
+    isClearingWorkItems,
+    syncingWorkSourceKeys,
     syncHistory,
     syncHistoryError,
     perSourceSyncStatus,
@@ -763,5 +854,7 @@ export function useHomeState() {
     onEditPerson,
     onDeletePerson,
     onClearNotifications,
+    onClearWorkItems,
+    onSyncShortcutWorkSource,
   }
 }

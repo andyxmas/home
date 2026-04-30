@@ -29,13 +29,14 @@ type ColumnModel = {
 }
 
 const columns: ColumnModel[] = [
+  { id: 'unassigned', title: 'Unassigned' },
   { id: 'today', title: 'Today' },
   { id: 'soon', title: 'Soon' },
   { id: 'later', title: 'Later' },
 ]
 
 function groupByColumn(items: WorkItem[]): Record<WorkColumn, WorkItem[]> {
-  const grouped: Record<WorkColumn, WorkItem[]> = { today: [], soon: [], later: [] }
+  const grouped: Record<WorkColumn, WorkItem[]> = { unassigned: [], today: [], soon: [], later: [] }
   for (const item of items) {
     grouped[item.column].push(item)
   }
@@ -46,7 +47,7 @@ function groupByColumn(items: WorkItem[]): Record<WorkColumn, WorkItem[]> {
 }
 
 function parseContainerId(containerId: string): WorkColumn | null {
-  if (containerId === 'today' || containerId === 'soon' || containerId === 'later') {
+  if (containerId === 'unassigned' || containerId === 'today' || containerId === 'soon' || containerId === 'later') {
     return containerId
   }
   return null
@@ -115,6 +116,7 @@ export function WorkPage({ workItems, workError, onMoveWorkItem, onReorderWorkCo
           </Alert>
         ) : null}
         {workItems.length === 0 ? <p>No work items yet.</p> : null}
+        <p>Shortcut sync initially lands items in Unassigned. Drag them into Today, Soon, or Later.</p>
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}

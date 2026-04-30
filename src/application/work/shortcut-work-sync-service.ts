@@ -7,6 +7,7 @@ import type { createProjectRepository } from '../../data/repositories/project-re
 import { project, sourceConfig } from '../../data/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { syncShortcutWork } from './shortcut-work-sync'
+import type { ShortcutWorkSyncReport } from './shortcut-work-sync'
 
 type WorkRepository = ReturnType<typeof createWorkRepository>
 type PersonRepository = ReturnType<typeof createPersonRepository>
@@ -18,7 +19,16 @@ export async function syncShortcutWorkItems(input: {
   personRepository: PersonRepository
   projectRepository: ProjectRepository
   sourceConfigs: Array<{ source: string; instanceKey: string; credentialsJson: string }>
-}): Promise<void> {
+}): Promise<{
+  totalSources: number
+  succeededSources: number
+  failedSources: number
+  totalUpserted: number
+  sources: Array<
+    | (ShortcutWorkSyncReport & { status: 'success' })
+    | { source: 'shortcut'; instanceKey: string; status: 'failed'; error: string; upserted: number }
+  >
+}> {
   const enabledShortcutConfigs = input.sourceConfigs
     .filter((row) => row.source === 'shortcut')
     .map(
@@ -50,24 +60,57 @@ export async function syncShortcutWorkItems(input: {
     return projectRow?.id ?? null
   }
 
+  const sources: Array<
+    | (ShortcutWorkSyncReport & { status: 'success' })
+    | { source: 'shortcut'; instanceKey: string; status: 'failed'; error: string; upserted: number }
+  > = []
+
   for (const config of enabledShortcutConfigs) {
-    await syncShortcutWork(config, {
-      getMeShortcutHandle: async () => meHandle,
-      resolveProjectIdForShortcutInstance,
-      upsertWorkItem: async (work) => {
-        await input.workRepository.upsert({
-          kind: work.kind,
-          source: 'shortcut',
-          dedupeKey: work.dedupeKey,
-          externalId: work.externalId,
-          title: work.title,
-          body: work.body,
-          url: work.url,
-          projectId: work.projectId,
-          column: work.column as WorkColumn,
-        })
-      },
-    })
+    try {
+      const report = await syncShortcutWork(config, {
+        getMeShortcutHandle: async () => meHandle,
+        resolveProjectIdForShortcutInstance,
+        upsertWorkItem: async (work) => {
+          await input.workRepository.upsert({
+            kind: work.kind,
+            source: 'shortcut',
+            dedupeKey: work.dedupeKey,
+            externalId: work.externalId,
+            title: work.title,
+            body: work.body,
+            url: work.url,
+            projectId: work.projectId,
+            column: work.column as WorkColumn,
+          })
+        },
+      })
+      sources.push({ ...report, status: 'success' })
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause)
+      console.warn('[work-sync] Shortcut source failed', {
+        instanceKey: config.instanceKey,
+        error,
+      })
+      sources.push({
+        source: 'shortcut',
+        instanceKey: config.instanceKey,
+        status: 'failed',
+        error,
+        upserted: 0,
+      })
+    }
+  }
+
+  const succeededSources = sources.filter((source) => source.status === 'success').length
+  const failedSources = sources.length - succeededSources
+  const totalUpserted = sources.reduce((total, source) => total + source.upserted, 0)
+
+  return {
+    totalSources: sources.length,
+    succeededSources,
+    failedSources,
+    totalUpserted,
+    sources,
   }
 }
 

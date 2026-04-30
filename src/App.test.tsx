@@ -656,7 +656,7 @@ describe('App', () => {
     expect(await screen.findByText(/GitHub Main/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Sync' }))
     expect(await screen.findByRole('button', { name: 'Syncing...' })).toBeInTheDocument()
-    expect(await screen.findByText(/Synced 2 items/)).toBeInTheDocument()
+    expect(await screen.findByText(/Synced 2 notifications/)).toBeInTheDocument()
 
     await waitFor(() => {
       expect(mockApi.fetchMock).toHaveBeenCalledWith('/api/sync/manual', {
@@ -1259,7 +1259,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Yes, clear notifications' }))
     expect(
       await screen.findByText(
-        'Cleared 1 notifications, 1 read-state records, 0 sync history rows, and reset 0 source watermark(s).',
+        'Cleared 1 notifications, 1 read-state records, 0 sync history rows, and reset 0 source watermark(s). Work items were not deleted.',
       ),
     ).toBeInTheDocument()
 

@@ -5,6 +5,14 @@ export type WorkService = {
   createWorkFromNotification(input: { notificationId: string }): Promise<WorkItem>
   moveWorkItem(input: { id: string; column: WorkColumn; position: number }): Promise<void>
   reorderWorkColumn(input: { column: WorkColumn; orderedIds: string[] }): Promise<void>
+  clearAllWorkItems(): Promise<{ clearedWorkItems: number }>
+  syncShortcutWorkItems(instanceKey?: string): Promise<{
+    totalSources: number
+    succeededSources: number
+    failedSources: number
+    totalUpserted: number
+    sources: Array<{ source: 'shortcut'; instanceKey: string; status: 'success' | 'failed'; upserted: number; error?: string }>
+  }>
 }
 
 type CreateFromNotificationPayload = {
@@ -21,8 +29,12 @@ type ReorderWorkPayload = {
   orderedIds?: string[]
 }
 
+type SyncShortcutWorkPayload = {
+  instanceKey?: string
+}
+
 function validateColumn(value: unknown): WorkColumn | null {
-  if (value === 'today' || value === 'soon' || value === 'later') {
+  if (value === 'unassigned' || value === 'today' || value === 'soon' || value === 'later') {
     return value
   }
   return null
@@ -65,7 +77,7 @@ export function createWorkEndpoint(service: WorkService) {
       const payload = await readPayload<MoveWorkPayload>(request)
       const column = validateColumn(payload.column)
       if (!column) {
-        return Response.json({ error: 'column must be one of: today, soon, later.' }, { status: 400 })
+        return Response.json({ error: 'column must be one of: unassigned, today, soon, later.' }, { status: 400 })
       }
       const position = payload.position
       if (typeof position !== 'number' || !Number.isFinite(position) || position < 0) {
@@ -79,7 +91,7 @@ export function createWorkEndpoint(service: WorkService) {
       const payload = await readPayload<ReorderWorkPayload>(request)
       const column = validateColumn(payload.column)
       if (!column) {
-        return Response.json({ error: 'column must be one of: today, soon, later.' }, { status: 400 })
+        return Response.json({ error: 'column must be one of: unassigned, today, soon, later.' }, { status: 400 })
       }
       if (!Array.isArray(payload.orderedIds) || payload.orderedIds.some((id) => typeof id !== 'string')) {
         return Response.json({ error: 'orderedIds must be an array of strings.' }, { status: 400 })
@@ -87,6 +99,17 @@ export function createWorkEndpoint(service: WorkService) {
       const orderedIds = payload.orderedIds.map((id) => id.trim()).filter(Boolean)
       await service.reorderWorkColumn({ column, orderedIds })
       return Response.json({ ok: true }, { status: 200 })
+    }
+
+    if (pathname === '/api/work/clear-all' && request.method === 'POST') {
+      const result = await service.clearAllWorkItems()
+      return Response.json(result, { status: 200 })
+    }
+
+    if (pathname === '/api/work/sync-shortcut' && request.method === 'POST') {
+      const payload = await readPayload<SyncShortcutWorkPayload>(request)
+      const result = await service.syncShortcutWorkItems(payload.instanceKey?.trim() || undefined)
+      return Response.json(result, { status: 200 })
     }
 
     return Response.json({ error: 'Work endpoint route not found.' }, { status: 404 })
