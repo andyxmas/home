@@ -28,5 +28,5 @@ See `README.md` and `package.json` scripts for the full list. Key commands:
 
 - **No external services required**: The app runs entirely locally. Slack/GitHub/Shortcut API tokens are optional and configured at runtime via the Settings UI. Tests use in-memory SQLite and mock HTTP calls.
 - **`better-sqlite3` is a native addon**: It compiles during `npm install`. If you see build errors, ensure build tools (python3, make, gcc) are available. The VM image typically has these pre-installed.
-- **Node.js version**: Requires Node.js 22+ (uses ES modules, TypeScript 6, Vite 8). nvm is used to manage versions; the update script sources nvm before running `npm install`.
+- **Node.js version**: Requires Node.js 22+ (uses ES modules, TypeScript 6, Vite 8). Node.js 22 is baked into the cloud agent base image via `.cursor/Dockerfile`.
 - **Dev snapshot replay**: The app can replay cached API snapshots from `.home/snapshots/` without hitting external APIs — useful for offline development. Toggle via the top bar ("Dev replay snapshots") or per source in Settings.
