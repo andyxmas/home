@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { triggerManualSync, triggerSourceManualSync } from '../../api/manual-sync'
-import { clearAllInboxItems, listInboxItems, setInboxReadState, type InboxItem } from '../../api/inbox'
+import {
+  triggerManualSync,
+  triggerReplaySync,
+  triggerSourceManualSync,
+  triggerSourceReplaySync,
+} from '../../api/manual-sync'
+import {
+  clearAllInboxItems,
+  listInboxItems,
+  markAllInboxItemsRead,
+  setInboxReadState,
+  type InboxItem,
+} from '../../api/inbox'
 import { deletePerson, listPeople, savePerson } from '../../api/people'
 import { listSyncHistory, type SyncHistoryEntry } from '../../api/sync-history'
 import { deleteSourceConfig, listSourceConfigs, saveSourceConfig } from '../../api/sources'
@@ -149,9 +160,11 @@ function mapPersonToForm(person: Person): PersonFormState {
 
 export function useHomeState() {
   const [isSyncing, setIsSyncing] = useState(false)
+  const [isReplaying, setIsReplaying] = useState(false)
   const [result, setResult] = useState<SyncAllSourcesResult | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [syncingSourceKeys, setSyncingSourceKeys] = useState<Record<string, boolean>>({})
+  const [replayingSourceKeys, setReplayingSourceKeys] = useState<Record<string, boolean>>({})
   const [sourceSyncStatus, setSourceSyncStatus] = useState<Record<string, { label: string; error?: string }>>(
     {},
   )
@@ -174,6 +187,8 @@ export function useHomeState() {
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null)
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
   const [inboxError, setInboxError] = useState<string | null>(null)
+  const [inboxNotice, setInboxNotice] = useState<string | null>(null)
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false)
   const [isClearingNotifications, setIsClearingNotifications] = useState(false)
   const [syncHistory, setSyncHistory] = useState<SyncHistoryEntry[]>([])
   const [syncHistoryError, setSyncHistoryError] = useState<string | null>(null)
@@ -183,13 +198,13 @@ export function useHomeState() {
     [sourceSyncStatus],
   )
 
-  const applySourceStatuses = (syncResult: SyncAllSourcesResult) => {
+  const applySourceStatuses = (syncResult: SyncAllSourcesResult, verb: 'Synced' | 'Replayed') => {
     setSourceSyncStatus((current) => {
       const next = { ...current }
       for (const sourceResult of syncResult.sources) {
         const key = `${sourceResult.source}:${sourceResult.instanceKey}`
         next[key] = {
-          label: sourceResult.status === 'success' ? `Synced ${sourceResult.upsertedCount} items` : 'Sync failed',
+          label: sourceResult.status === 'success' ? `${verb} ${sourceResult.upsertedCount} items` : `${verb} failed`,
           error: sourceResult.error,
         }
       }
@@ -248,7 +263,7 @@ export function useHomeState() {
     try {
       const syncResult = await triggerManualSync()
       setResult(syncResult)
-      applySourceStatuses(syncResult)
+      applySourceStatuses(syncResult, 'Synced')
       setInboxError(null)
       setSyncHistoryError(null)
       await Promise.all([refreshInbox(), refreshSyncHistory()])
@@ -268,7 +283,7 @@ export function useHomeState() {
     try {
       const syncResult = await triggerSourceManualSync(config.source, config.instanceKey)
       setResult(syncResult)
-      applySourceStatuses(syncResult)
+      applySourceStatuses(syncResult, 'Synced')
       setInboxError(null)
       setSyncHistoryError(null)
       await Promise.all([refreshInbox(), refreshSyncHistory()])
@@ -280,6 +295,48 @@ export function useHomeState() {
       }))
     } finally {
       setSyncingSourceKeys((current) => ({ ...current, [sourceKey]: false }))
+    }
+  }
+
+  const onReplayNow = async () => {
+    setIsReplaying(true)
+    setSyncError(null)
+
+    try {
+      const syncResult = await triggerReplaySync()
+      setResult(syncResult)
+      applySourceStatuses(syncResult, 'Replayed')
+      setInboxError(null)
+      setSyncHistoryError(null)
+      await Promise.all([refreshInbox(), refreshSyncHistory()])
+    } catch (cause) {
+      setResult(null)
+      setSyncError(cause instanceof Error ? cause.message : 'Replay sync failed')
+    } finally {
+      setIsReplaying(false)
+    }
+  }
+
+  const onReplaySource = async (config: SourceConfig) => {
+    const sourceKey = `${config.source}:${config.instanceKey}`
+    setReplayingSourceKeys((current) => ({ ...current, [sourceKey]: true }))
+    setSyncError(null)
+
+    try {
+      const syncResult = await triggerSourceReplaySync(config.source, config.instanceKey)
+      setResult(syncResult)
+      applySourceStatuses(syncResult, 'Replayed')
+      setInboxError(null)
+      setSyncHistoryError(null)
+      await Promise.all([refreshInbox(), refreshSyncHistory()])
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Source replay failed'
+      setSourceSyncStatus((current) => ({
+        ...current,
+        [sourceKey]: { label: 'Replay failed', error: message },
+      }))
+    } finally {
+      setReplayingSourceKeys((current) => ({ ...current, [sourceKey]: false }))
     }
   }
 
@@ -360,11 +417,27 @@ export function useHomeState() {
 
   const onToggleRead = async (item: InboxItem) => {
     setInboxError(null)
+    setInboxNotice(null)
     try {
       await setInboxReadState(item.id, !item.isRead)
       await refreshInbox()
     } catch (cause) {
       setInboxError(cause instanceof Error ? cause.message : 'Failed to update read state.')
+    }
+  }
+
+  const onMarkAllRead = async () => {
+    setInboxError(null)
+    setInboxNotice(null)
+    setIsMarkingAllRead(true)
+    try {
+      const result = await markAllInboxItemsRead()
+      await refreshInbox()
+      setInboxNotice(`Marked ${result.changedCount} notification(s) as read.`)
+    } catch (cause) {
+      setInboxError(cause instanceof Error ? cause.message : 'Failed to mark all as read.')
+    } finally {
+      setIsMarkingAllRead(false)
     }
   }
 
@@ -557,15 +630,19 @@ export function useHomeState() {
     result,
     syncError,
     isSyncing,
+    isReplaying,
     sourceConfigs,
     people,
     sourceForm,
     personForm,
     syncingSourceKeys,
+    replayingSourceKeys,
     settingsError,
     settingsNotice,
     inboxItems: filteredInboxItems,
     inboxError,
+    inboxNotice,
+    isMarkingAllRead,
     isClearingNotifications,
     syncHistory,
     syncHistoryError,
@@ -588,12 +665,15 @@ export function useHomeState() {
     setSelectedFromFilter,
     setSelectedViewMode,
     onSyncNow,
+    onReplayNow,
     onSyncSource,
+    onReplaySource,
     onSaveSource,
     onDeleteSource,
     onEditSource,
     onToggleEnabled,
     onToggleRead,
+    onMarkAllRead,
     onSaveProject,
     onEditProject,
     onDeleteProject,

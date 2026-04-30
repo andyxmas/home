@@ -82,6 +82,12 @@ describe('manual sync endpoint', () => {
       runManualSyncForSource(source, instanceKey) {
         return orchestrator.syncSingleSource({ source, instanceKey })
       },
+      runReplaySync() {
+        return orchestrator.replayAllSources()
+      },
+      runReplaySyncForSource(source, instanceKey) {
+        return orchestrator.replaySingleSource({ source, instanceKey })
+      },
     })
 
     const response = await endpoint(new Request('http://localhost/api/sync/manual', { method: 'POST' }))
@@ -102,6 +108,12 @@ describe('manual sync endpoint', () => {
         throw new Error('should not be called')
       },
       async runManualSyncForSource() {
+        throw new Error('should not be called')
+      },
+      async runReplaySync() {
+        throw new Error('should not be called')
+      },
+      async runReplaySyncForSource() {
         throw new Error('should not be called')
       },
     })
@@ -178,6 +190,12 @@ describe('manual sync endpoint', () => {
       },
       runManualSyncForSource(source, instanceKey) {
         return orchestrator.syncSingleSource({ source, instanceKey })
+      },
+      runReplaySync() {
+        return orchestrator.replayAllSources()
+      },
+      runReplaySyncForSource(source, instanceKey) {
+        return orchestrator.replaySingleSource({ source, instanceKey })
       },
     })
 

@@ -222,6 +222,83 @@ describe('repositories integration', () => {
     expect(remainingStates).toHaveLength(0)
   })
 
+  it('marks all unread active notifications as read in bulk', async () => {
+    const testDb = withDb()
+    const notificationRepo = createNotificationRepository(testDb.db, clock)
+
+    await notificationRepo.upsert({
+      id: crypto.randomUUID(),
+      source: 'github',
+      externalId: 'thread-read-all-1',
+      title: 'Unread one',
+      body: 'First',
+      occurredAt: '2026-01-10T10:00:00.000Z',
+      payload: { reason: 'mention' },
+    })
+    await notificationRepo.upsert({
+      id: crypto.randomUUID(),
+      source: 'slack',
+      externalId: 'thread-read-all-2',
+      title: 'Unread two',
+      body: 'Second',
+      occurredAt: '2026-01-11T10:00:00.000Z',
+      payload: { channel: 'general' },
+    })
+    await notificationRepo.upsert({
+      id: crypto.randomUUID(),
+      source: 'shortcut',
+      externalId: 'thread-read-all-3',
+      title: 'Already read',
+      body: 'Third',
+      occurredAt: '2026-01-12T10:00:00.000Z',
+      payload: { storyId: 42 },
+    })
+
+    const before = await notificationRepo.listActive()
+    await notificationRepo.setReadState(before[0].id, true)
+
+    const changedCount = await notificationRepo.markAllActiveAsRead()
+    expect(changedCount).toBe(2)
+
+    const after = await notificationRepo.listActiveWithState()
+    expect(after.every((row) => row.state?.isRead)).toBe(true)
+    expect(after.filter((row) => row.state?.readAt instanceof Date)).toHaveLength(3)
+  })
+
+  it('lists only unread notifications for inbox queries', async () => {
+    const testDb = withDb()
+    const notificationRepo = createNotificationRepository(testDb.db, clock)
+
+    await notificationRepo.upsert({
+      id: crypto.randomUUID(),
+      source: 'github',
+      externalId: 'thread-unread-only-1',
+      title: 'Unread item',
+      body: 'First',
+      occurredAt: '2026-01-10T10:00:00.000Z',
+      payload: { reason: 'mention' },
+    })
+    await notificationRepo.upsert({
+      id: crypto.randomUUID(),
+      source: 'slack',
+      externalId: 'thread-unread-only-2',
+      title: 'Read item',
+      body: 'Second',
+      occurredAt: '2026-01-11T10:00:00.000Z',
+      payload: { channel: 'general' },
+    })
+
+    const rows = await notificationRepo.listActive()
+    const readRow = rows.find((row) => row.externalId === 'thread-unread-only-2')
+    expect(readRow).toBeDefined()
+    await notificationRepo.setReadState(readRow!.id, true)
+
+    const unreadRows = await notificationRepo.listUnreadActiveWithState()
+    expect(unreadRows).toHaveLength(1)
+    expect(unreadRows[0].notification.externalId).toBe('thread-unread-only-1')
+    expect(unreadRows[0].state?.isRead).toBe(false)
+  })
+
   it('stores sync run start/completion with source config context', async () => {
     const testDb = withDb()
     const syncRunRepo = createSyncRunRepository(testDb.db, clock)

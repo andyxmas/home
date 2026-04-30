@@ -18,6 +18,7 @@ export type InboxItem = {
 
 type InboxResponse = {
   items?: InboxItem[]
+  changedCount?: number
   clearedNotifications?: number
   clearedReadStates?: number
   clearedSyncHistory?: number
@@ -30,6 +31,10 @@ export type ClearInboxResult = {
   clearedReadStates: number
   clearedSyncHistory: number
   resetWatermarks: number
+}
+
+export type MarkAllReadResult = {
+  changedCount: number
 }
 
 export async function listInboxItems(): Promise<InboxItem[]> {
@@ -68,5 +73,19 @@ export async function clearAllInboxItems(): Promise<ClearInboxResult> {
     clearedReadStates: payload.clearedReadStates ?? 0,
     clearedSyncHistory: payload.clearedSyncHistory ?? 0,
     resetWatermarks: payload.resetWatermarks ?? 0,
+  }
+}
+
+export async function markAllInboxItemsRead(): Promise<MarkAllReadResult> {
+  const response = await fetch('/api/inbox/mark-all-read', {
+    method: 'POST',
+  })
+  const payload = (await response.json().catch(() => ({}))) as InboxResponse
+  if (!response.ok) {
+    throw new Error(payload.error ?? 'Failed to mark all inbox items as read')
+  }
+
+  return {
+    changedCount: payload.changedCount ?? 0,
   }
 }

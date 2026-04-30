@@ -35,3 +35,34 @@ export async function triggerSourceManualSync(
 
   return (await response.json()) as SyncAllSourcesResult
 }
+
+export async function triggerReplaySync(): Promise<SyncAllSourcesResult> {
+  const response = await fetch('/api/sync/replay', {
+    method: 'POST',
+  })
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as ErrorPayload
+    throw new Error(payload.error ?? 'Replay sync failed')
+  }
+
+  return (await response.json()) as SyncAllSourcesResult
+}
+
+export async function triggerSourceReplaySync(
+  source: SourceKind,
+  instanceKey: string,
+): Promise<SyncAllSourcesResult> {
+  const response = await fetch('/api/sync/replay', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source, instanceKey }),
+  })
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as ErrorPayload
+    throw new Error(payload.error ?? 'Source replay failed')
+  }
+
+  return (await response.json()) as SyncAllSourcesResult
+}

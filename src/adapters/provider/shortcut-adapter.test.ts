@@ -113,6 +113,75 @@ describe('shortcut adapter', () => {
     expect(result.notifications[0].url).toBe('https://app.shortcut.com/acme/story/42#comment-11')
   })
 
+  it('preserves existing comment URL fragments without appending comment hash', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'member-123' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify([])))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: [
+              {
+                id: 42,
+                app_url: 'https://app.shortcut.com/acme/story/42',
+                comments: [
+                  {
+                    id: 64621,
+                    text: 'FYI @andy',
+                    app_url: 'https://app.shortcut.com/acme/story/42#activity-64621',
+                    author_id: 'member-other',
+                    member_mention_ids: ['member-123'],
+                    created_at: '2026-01-10T10:00:00Z',
+                  },
+                ],
+              },
+            ],
+          }),
+        ),
+      )
+
+    const adapter = createShortcutAdapter({ fetchImpl: fetchMock as unknown as typeof fetch })
+    const result = await adapter.fetchNotifications(makeShortcutConfig(), {})
+
+    expect(result.notifications).toHaveLength(1)
+    expect(result.notifications[0].url).toBe('https://app.shortcut.com/acme/story/42#activity-64621')
+  })
+
+  it('appends comment hash when comment URL has no fragment', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'member-123' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify([])))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: [
+              {
+                id: 42,
+                comments: [
+                  {
+                    id: 64621,
+                    text: 'FYI @andy',
+                    app_url: 'https://app.shortcut.com/acme/story/42',
+                    author_id: 'member-other',
+                    member_mention_ids: ['member-123'],
+                    created_at: '2026-01-10T10:00:00Z',
+                  },
+                ],
+              },
+            ],
+          }),
+        ),
+      )
+
+    const adapter = createShortcutAdapter({ fetchImpl: fetchMock as unknown as typeof fetch })
+    const result = await adapter.fetchNotifications(makeShortcutConfig(), {})
+
+    expect(result.notifications).toHaveLength(1)
+    expect(result.notifications[0].url).toBe('https://app.shortcut.com/acme/story/42#comment-64621')
+  })
+
   it('fetches all pages when Shortcut returns next cursor', async () => {
     const fetchMock = vi
       .fn()

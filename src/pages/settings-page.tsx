@@ -35,8 +35,10 @@ type SettingsPageProps = {
   perSourceSyncStatus: Map<string, { label: string; error?: string }>
   isSyncing: boolean
   syncingSourceKeys: Record<string, boolean>
+  replayingSourceKeys: Record<string, boolean>
   onEditSource: (config: SourceConfig) => void
   onSyncSource: (config: SourceConfig) => Promise<void>
+  onReplaySource: (config: SourceConfig) => Promise<void>
   onToggleEnabled: (config: SourceConfig) => Promise<void>
   onDeleteSource: (config: SourceConfig) => Promise<void>
   onEditProject: (project: Project) => void
@@ -108,8 +110,10 @@ export function SettingsPage({
   perSourceSyncStatus,
   isSyncing,
   syncingSourceKeys,
+  replayingSourceKeys,
   onEditSource,
   onSyncSource,
+  onReplaySource,
   onToggleEnabled,
   onDeleteSource,
   onEditProject,
@@ -144,8 +148,10 @@ export function SettingsPage({
               perSourceSyncStatus={perSourceSyncStatus}
               isSyncing={isSyncing}
               syncingSourceKeys={syncingSourceKeys}
+              replayingSourceKeys={replayingSourceKeys}
               onEditSource={onEditSource}
               onSyncSource={onSyncSource}
+              onReplaySource={onReplaySource}
               onToggleEnabled={onToggleEnabled}
               onDeleteSource={onDeleteSource}
               onClearNotifications={onClearNotifications}
@@ -210,8 +216,10 @@ function SettingsSourcesPage(props: {
   perSourceSyncStatus: Map<string, { label: string; error?: string }>
   isSyncing: boolean
   syncingSourceKeys: Record<string, boolean>
+  replayingSourceKeys: Record<string, boolean>
   onEditSource: (config: SourceConfig) => void
   onSyncSource: (config: SourceConfig) => Promise<void>
+  onReplaySource: (config: SourceConfig) => Promise<void>
   onToggleEnabled: (config: SourceConfig) => Promise<void>
   onDeleteSource: (config: SourceConfig) => Promise<void>
   onClearNotifications: () => Promise<void>
@@ -406,9 +414,25 @@ function SettingsSourcesPage(props: {
                       type="button"
                       variant="outline"
                       onClick={() => props.onSyncSource(config)}
-                      disabled={props.isSyncing || props.syncingSourceKeys[sourceKey]}
+                      disabled={
+                        props.isSyncing ||
+                        props.syncingSourceKeys[sourceKey] ||
+                        props.replayingSourceKeys[sourceKey]
+                      }
                     >
                       {props.syncingSourceKeys[sourceKey] ? 'Syncing...' : 'Sync'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => props.onReplaySource(config)}
+                      disabled={
+                        props.isSyncing ||
+                        props.syncingSourceKeys[sourceKey] ||
+                        props.replayingSourceKeys[sourceKey]
+                      }
+                    >
+                      {props.replayingSourceKeys[sourceKey] ? 'Replaying...' : 'Dev replay'}
                     </Button>
                     <Button type="button" variant="outline" onClick={() => props.onToggleEnabled(config)}>
                       {config.enabled ? 'Disable' : 'Enable'}

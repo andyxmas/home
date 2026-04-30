@@ -1,7 +1,9 @@
 import type { Connect, Plugin } from 'vite'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createManualSyncEndpoint } from './manual-sync-endpoint'
+import { createReplaySyncEndpoint } from './replay-sync-endpoint'
 import { createClearNotificationsEndpoint } from './clear-notifications-endpoint'
+import { createMarkAllReadEndpoint } from './mark-all-read-endpoint'
 import { createPeopleEndpoint } from './people-endpoint'
 import { createProjectEndpoint } from './project-endpoint'
 import { createSyncHistoryEndpoint } from './sync-history-endpoint'
@@ -78,7 +80,9 @@ function validateSourcePayload(payload: SourceConfigPayload): string[] {
 
 function createMiddleware(): Connect.NextHandleFunction {
   let handleManualSync: ReturnType<typeof createManualSyncEndpoint> | undefined
+  let handleReplaySync: ReturnType<typeof createReplaySyncEndpoint> | undefined
   let handleClearNotifications: ReturnType<typeof createClearNotificationsEndpoint> | undefined
+  let handleMarkAllRead: ReturnType<typeof createMarkAllReadEndpoint> | undefined
   let handleProjects: ReturnType<typeof createProjectEndpoint> | undefined
   let handlePeople: ReturnType<typeof createPeopleEndpoint> | undefined
   let handleSyncHistory: ReturnType<typeof createSyncHistoryEndpoint> | undefined
@@ -203,6 +207,15 @@ function createMiddleware(): Connect.NextHandleFunction {
       return
     }
 
+    if (pathname === '/api/inbox/mark-all-read') {
+      if (!handleMarkAllRead) {
+        handleMarkAllRead = createMarkAllReadEndpoint(localService)
+      }
+      const response = await handleMarkAllRead({ method })
+      writeJsonResponse(res, await response.json(), response.status)
+      return
+    }
+
     if (pathname === '/api/inbox/clear-all') {
       if (!handleClearNotifications) {
         handleClearNotifications = createClearNotificationsEndpoint(localService)
@@ -217,6 +230,18 @@ function createMiddleware(): Connect.NextHandleFunction {
         handleSyncHistory = createSyncHistoryEndpoint(localService)
       }
       const response = await handleSyncHistory({ method, url: `http://localhost${req.url}` })
+      writeJsonResponse(res, await response.json(), response.status)
+      return
+    }
+
+    if (pathname.startsWith('/api/sync/replay')) {
+      if (!handleReplaySync) {
+        handleReplaySync = createReplaySyncEndpoint(localService)
+      }
+
+      const payload =
+        method === 'POST' ? await readJsonBody<ManualSyncPayload>(req) : ({} as ManualSyncPayload)
+      const response = await handleReplaySync({ method }, payload)
       writeJsonResponse(res, await response.json(), response.status)
       return
     }

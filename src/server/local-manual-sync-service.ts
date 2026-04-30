@@ -6,7 +6,9 @@ import {
   createClearNotificationsService,
   type ClearAllNotificationsResult,
 } from '../application/inbox/clear-notifications-service'
+import { createMarkAllReadService } from '../application/inbox/mark-all-read-service'
 import { createSyncOrchestrator } from '../application/sync/sync-orchestrator'
+import { createLocalSnapshotStore } from '../application/sync/local-snapshot-store'
 import { createDefaultSourceAdapters } from '../adapters/local/default-source-adapters'
 import { createDatabase } from '../data/db'
 import {
@@ -56,6 +58,7 @@ export type LocalHomeService = ManualSyncService & {
     }>
   >
   setInboxReadState(notificationId: string, isRead: boolean): Promise<void>
+  markAllAsRead(): Promise<{ changedCount: number }>
   listProjects(): Promise<Project[]>
   listPeople(): Promise<Person[]>
   upsertProject(input: {
@@ -256,6 +259,9 @@ export function createLocalManualSyncService(): LocalHomeService {
     syncRunRepository,
     sourceConfigRepository,
   })
+  const markAllReadService = createMarkAllReadService({
+    notificationRepository,
+  })
   const orchestrator = createSyncOrchestrator({
     sourceConfigRepository,
     syncRunRepository,
@@ -263,6 +269,7 @@ export function createLocalManualSyncService(): LocalHomeService {
     projectRepository,
     personRepository,
     adapterRegistry: createAdapterRegistry(createDefaultSourceAdapters()),
+    snapshotStore: createLocalSnapshotStore(process.cwd()),
   })
 
   const parseSourceConfig = (row: {
@@ -291,6 +298,12 @@ export function createLocalManualSyncService(): LocalHomeService {
     },
     runManualSyncForSource(source, instanceKey) {
       return orchestrator.syncSingleSource({ source, instanceKey })
+    },
+    runReplaySync() {
+      return orchestrator.replayAllSources()
+    },
+    runReplaySyncForSource(source, instanceKey) {
+      return orchestrator.replaySingleSource({ source, instanceKey })
     },
     async listSourceConfigs() {
       const rows = await sourceConfigRepository.listAll()
@@ -339,7 +352,7 @@ export function createLocalManualSyncService(): LocalHomeService {
       await sourceConfigRepository.delete(source, instanceKey)
     },
     async listInboxItems() {
-      const rows = await notificationRepository.listActiveWithState()
+      const rows = await notificationRepository.listUnreadActiveWithState()
       const projects = await projectRepository.listAll()
       const people = await personRepository.listAll()
       const projectById = new Map(projects.map((item) => [item.id, item]))
@@ -366,6 +379,9 @@ export function createLocalManualSyncService(): LocalHomeService {
     },
     async setInboxReadState(notificationId, isRead) {
       await notificationRepository.setReadState(notificationId, isRead)
+    },
+    async markAllAsRead() {
+      return markAllReadService.markAllAsRead()
     },
     async listProjects() {
       return projectRepository.listAll()

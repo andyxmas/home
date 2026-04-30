@@ -169,3 +169,5 @@ Fine-grained tokens can only see selected repositories. Mentions in repos not in
 - Keep source `Display name` specific so sync history is easy to read.
 - After rotating a token, edit the same source entry and update only `Token`.
 - First successful sync per source starts with a default 7-day lookback; later syncs use the source watermark for incremental fetches.
+- Dev/offline replay uses local snapshots from `.home/snapshots/` and keeps only the latest snapshot per source + instance key.
+- If replay fails due to missing/invalid snapshot schema, run a normal live sync once to regenerate snapshots.

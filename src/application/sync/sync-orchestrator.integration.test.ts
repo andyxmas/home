@@ -255,6 +255,78 @@ describe('sync orchestrator integration', () => {
     expect(runs).toHaveLength(2)
   })
 
+  it('stores only the latest snapshot per source config', async () => {
+    const testDb = withDb()
+    const sourceConfigRepo = createSourceConfigRepository(testDb.db, clock)
+    const syncRunRepo = createSyncRunRepository(testDb.db, clock)
+    const notificationRepo = createNotificationRepository(testDb.db, clock)
+    const savedSnapshots = new Map<
+      string,
+      { capturedAt: string; since: string; notifications: Array<{ externalId: string }> }
+    >()
+
+    await sourceConfigRepo.upsert({
+      source: 'github',
+      instanceKey: 'main',
+      displayName: 'GitHub Main',
+      enabled: true,
+      authMode: 'token',
+      credentials: { authMode: 'token', token: { value: 'ghp-secret' } },
+    })
+
+    let fetchCount = 0
+    const adapter: SourceAdapter = {
+      source: 'github',
+      async fetchNotifications() {
+        fetchCount += 1
+        return {
+          notifications: [
+            {
+              id: crypto.randomUUID(),
+              source: 'github',
+              externalId: `gh-${fetchCount}`,
+              dedupeKey: 'ignored',
+              title: `Run ${fetchCount}`,
+              occurredAt: '2026-01-14T11:00:00.000Z',
+              payload: { run: fetchCount },
+            },
+          ],
+        }
+      },
+    }
+
+    const orchestrator = createSyncOrchestrator(
+      {
+        sourceConfigRepository: sourceConfigRepo,
+        syncRunRepository: syncRunRepo,
+        notificationRepository: notificationRepo,
+        adapterRegistry: createAdapterRegistry([adapter]),
+        snapshotStore: {
+          async saveLatest(input) {
+            savedSnapshots.set(`${input.source}:${input.instanceKey}`, {
+              capturedAt: input.capturedAt,
+              since: input.since,
+              notifications: input.notifications.map((item) => ({ externalId: item.externalId })),
+            })
+          },
+          async readLatest() {
+            return null
+          },
+        },
+      },
+      clock,
+    )
+
+    await orchestrator.syncAllSources()
+    nowMs += 60_000
+    await orchestrator.syncAllSources()
+
+    const latest = savedSnapshots.get('github:main')
+    expect(savedSnapshots.size).toBe(1)
+    expect(latest?.notifications).toEqual([{ externalId: 'gh-2' }])
+    expect(latest?.capturedAt).toBe('2026-01-15T12:01:00.000Z')
+  })
+
   it('passes source watermark as since and advances it only after successful sync', async () => {
     const testDb = withDb()
     const sourceConfigRepo = createSourceConfigRepository(testDb.db, clock)
@@ -318,6 +390,74 @@ describe('sync orchestrator integration', () => {
     const runs = await syncRunRepo.listHistory({ source: 'shortcut', instanceKey: 'team-1' })
     expect(runs).toHaveLength(2)
     expect(runs[0].sinceUsed).toBe('2026-01-15T12:00:00.000Z')
+  })
+
+  it('replays from local snapshots without calling source adapters', async () => {
+    const testDb = withDb()
+    const sourceConfigRepo = createSourceConfigRepository(testDb.db, clock)
+    const syncRunRepo = createSyncRunRepository(testDb.db, clock)
+    const notificationRepo = createNotificationRepository(testDb.db, clock)
+
+    await sourceConfigRepo.upsert({
+      source: 'shortcut',
+      instanceKey: 'workspace-a',
+      displayName: 'Shortcut A',
+      enabled: true,
+      authMode: 'token',
+      credentials: { authMode: 'token', token: { value: 'shortcut-token' } },
+    })
+
+    const adapterCalls: string[] = []
+    const orchestrator = createSyncOrchestrator(
+      {
+        sourceConfigRepository: sourceConfigRepo,
+        syncRunRepository: syncRunRepo,
+        notificationRepository: notificationRepo,
+        adapterRegistry: createAdapterRegistry([
+          {
+            source: 'shortcut',
+            async fetchNotifications() {
+              adapterCalls.push('called')
+              throw new Error('adapter should not be called during replay')
+            },
+          },
+        ]),
+        snapshotStore: {
+          async saveLatest() {
+            throw new Error('saveLatest should not be called during replay')
+          },
+          async readLatest() {
+            return {
+              source: 'shortcut',
+              instanceKey: 'workspace-a',
+              capturedAt: '2026-01-15T12:00:00.000Z',
+              since: '2026-01-15T11:00:00.000Z',
+              notifications: [
+                {
+                  id: crypto.randomUUID(),
+                  source: 'shortcut',
+                  externalId: 'story-1',
+                  title: 'Snapshot replay item',
+                  occurredAt: '2026-01-14T11:00:00.000Z',
+                  payload: { storyId: 42 },
+                },
+              ],
+            }
+          },
+        },
+      },
+      clock,
+    )
+
+    const result = await orchestrator.replayAllSources()
+    expect(result.succeededSources).toBe(1)
+    expect(result.totalUpserted).toBe(1)
+    expect(adapterCalls).toEqual([])
+
+    const notifications = await notificationRepo.listActiveWithState()
+    expect(notifications).toHaveLength(1)
+    expect(notifications[0].notification.title).toBe('Snapshot replay item')
+    expect(notifications[0].state?.isRead).toBe(false)
   })
 
   it('follows adapter cursors to fetch all pages', async () => {

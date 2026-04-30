@@ -1,4 +1,4 @@
-import { and, eq, inArray, lt } from 'drizzle-orm'
+import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import type { CanonicalNotification } from '../../domain/notification'
 import type { HomeDb } from '../db/client'
 import { archiveNotification, notification, notificationState } from '../db/schema'
@@ -113,6 +113,31 @@ export function createNotificationRepository(db: HomeDb, clock: Clock = defaultC
       }))
     },
 
+    async listUnreadActiveWithState() {
+      const notifications = await db.query.notification.findMany({
+        orderBy: (table, { desc }) => [desc(table.occurredAt)],
+      })
+
+      if (notifications.length === 0) {
+        return []
+      }
+
+      const states = await db.query.notificationState.findMany({
+        where: inArray(
+          notificationState.notificationId,
+          notifications.map((row) => row.id),
+        ),
+      })
+      const stateById = new Map(states.map((state) => [state.notificationId, state]))
+
+      return notifications
+        .map((row) => ({
+          notification: row,
+          state: stateById.get(row.id) ?? null,
+        }))
+        .filter(({ state }) => !state?.isRead)
+    },
+
     async setReadState(notificationId: string, isRead: boolean) {
       const now = clock()
       await db
@@ -123,6 +148,28 @@ export function createNotificationRepository(db: HomeDb, clock: Clock = defaultC
           updatedAt: now,
         })
         .where(eq(notificationState.notificationId, notificationId))
+    },
+
+    async markAllActiveAsRead() {
+      const now = clock()
+      const [unreadSummary] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(notificationState)
+        .where(eq(notificationState.isRead, false))
+      const unreadCount = Number(unreadSummary?.count ?? 0)
+      if (unreadCount === 0) {
+        return 0
+      }
+
+      await db
+        .update(notificationState)
+        .set({
+          isRead: true,
+          readAt: now,
+          updatedAt: now,
+        })
+        .where(eq(notificationState.isRead, false))
+      return unreadCount
     },
 
     async getState(notificationId: string) {

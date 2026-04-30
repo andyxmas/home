@@ -115,7 +115,7 @@ function toShortcutCommentUrl(story: ShortcutStory, comment: ShortcutStoryCommen
 
   const commentUrl = normalizeShortcutWebUrl(comment.app_url)
   if (commentUrl) {
-    if (commentUrl.includes('#comment-')) {
+    if (commentUrl.includes('#')) {
       return commentUrl
     }
     return `${commentUrl}#comment-${commentId}`
@@ -124,6 +124,9 @@ function toShortcutCommentUrl(story: ShortcutStory, comment: ShortcutStoryCommen
   const storyUrl = normalizeShortcutWebUrl(story.app_url)
   if (!storyUrl) {
     return undefined
+  }
+  if (storyUrl.includes('#')) {
+    return storyUrl
   }
   return `${storyUrl}#comment-${commentId}`
 }

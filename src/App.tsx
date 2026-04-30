@@ -29,9 +29,19 @@ function App() {
             </NavLink>
           </nav>
         </div>
-        <Button type="button" onClick={state.onSyncNow} disabled={state.isSyncing}>
-          {state.isSyncing ? 'Syncing...' : 'Sync now'}
-        </Button>
+        <div className="row-actions">
+          <Button type="button" onClick={state.onSyncNow} disabled={state.isSyncing || state.isReplaying}>
+            {state.isSyncing ? 'Syncing...' : 'Sync now'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={state.onReplayNow}
+            disabled={state.isSyncing || state.isReplaying}
+          >
+            {state.isReplaying ? 'Replaying...' : 'Dev replay snapshots'}
+          </Button>
+        </div>
       </header>
       {state.syncError ? (
         <Alert variant="destructive">
@@ -57,6 +67,8 @@ function App() {
             <InboxPage
               inboxItems={state.inboxItems}
               inboxError={state.inboxError}
+              inboxNotice={state.inboxNotice}
+              isMarkingAllRead={state.isMarkingAllRead}
               projectFilters={state.projectFilterOptions}
               selectedProjectFilter={state.selectedProjectFilter}
               onSelectProjectFilter={state.setSelectedProjectFilter}
@@ -72,6 +84,7 @@ function App() {
               selectedViewMode={state.selectedViewMode}
               onSelectViewMode={state.setSelectedViewMode}
               onToggleRead={state.onToggleRead}
+              onMarkAllRead={state.onMarkAllRead}
             />
           }
         />
@@ -81,6 +94,8 @@ function App() {
             <InboxPage
               inboxItems={state.inboxItems}
               inboxError={state.inboxError}
+              inboxNotice={state.inboxNotice}
+              isMarkingAllRead={state.isMarkingAllRead}
               projectFilters={state.projectFilterOptions}
               selectedProjectFilter={state.selectedProjectFilter}
               onSelectProjectFilter={state.setSelectedProjectFilter}
@@ -96,6 +111,7 @@ function App() {
               selectedViewMode={state.selectedViewMode}
               onSelectViewMode={state.setSelectedViewMode}
               onToggleRead={state.onToggleRead}
+              onMarkAllRead={state.onMarkAllRead}
             />
           }
         />
@@ -121,8 +137,10 @@ function App() {
               perSourceSyncStatus={state.perSourceSyncStatus}
               isSyncing={state.isSyncing}
               syncingSourceKeys={state.syncingSourceKeys}
+              replayingSourceKeys={state.replayingSourceKeys}
               onEditSource={state.onEditSource}
               onSyncSource={state.onSyncSource}
+              onReplaySource={state.onReplaySource}
               onToggleEnabled={state.onToggleEnabled}
               onDeleteSource={state.onDeleteSource}
               onEditProject={state.onEditProject}

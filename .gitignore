@@ -28,3 +28,4 @@ dist-ssr
 .home/*.sqlite-*
 .home/*.db
 .home/*.db-*
+.home/snapshots/

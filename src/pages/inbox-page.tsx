@@ -10,6 +10,8 @@ import { InboxBodyMarkdown } from '../features/inbox/inbox-body-markdown'
 type InboxPageProps = {
   inboxItems: InboxItem[]
   inboxError: string | null
+  inboxNotice: string | null
+  isMarkingAllRead: boolean
   projectFilters: Array<{ id: string; name: string }>
   selectedProjectFilter: string
   onSelectProjectFilter: (value: string) => void
@@ -22,11 +24,14 @@ type InboxPageProps = {
   selectedViewMode: InboxViewMode
   onSelectViewMode: (value: InboxViewMode) => void
   onToggleRead: (item: InboxItem) => Promise<void>
+  onMarkAllRead: () => Promise<void>
 }
 
 export function InboxPage({
   inboxItems,
   inboxError,
+  inboxNotice,
+  isMarkingAllRead,
   projectFilters,
   selectedProjectFilter,
   onSelectProjectFilter,
@@ -39,6 +44,7 @@ export function InboxPage({
   selectedViewMode,
   onSelectViewMode,
   onToggleRead,
+  onMarkAllRead,
 }: InboxPageProps) {
   const isCondensed = selectedViewMode === 'condensed'
 
@@ -129,6 +135,23 @@ export function InboxPage({
             Condensed
           </Button>
         </div>
+        <div className="row-actions" role="group" aria-label="Inbox actions">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void onMarkAllRead()}
+            disabled={isMarkingAllRead || inboxItems.length === 0}
+          >
+            {isMarkingAllRead ? 'Marking...' : 'Mark all as read'}
+          </Button>
+        </div>
+        {inboxNotice ? (
+          <Alert>
+            <AlertTitle>Inbox updated</AlertTitle>
+            <AlertDescription>{inboxNotice}</AlertDescription>
+          </Alert>
+        ) : null}
         {inboxError ? (
           <Alert variant="destructive">
             <AlertTitle>Inbox error</AlertTitle>
@@ -136,7 +159,7 @@ export function InboxPage({
           </Alert>
         ) : null}
         {inboxItems.length === 0 ? (
-          <p>No inbox items yet.</p>
+          <p>You're all caught up. No unread inbox items.</p>
         ) : (
           <ul className="item-list">
             {inboxItems.map((item) => (

@@ -177,7 +177,7 @@ function createMockApi() {
     }
 
     if (url === '/api/inbox' && method === 'GET') {
-      return new Response(JSON.stringify({ items: inboxItems }), { status: 200 })
+      return new Response(JSON.stringify({ items: inboxItems.filter((item) => !item.isRead) }), { status: 200 })
     }
 
     if (url === '/api/projects' && method === 'GET') {
@@ -317,6 +317,17 @@ function createMockApi() {
       return new Response(JSON.stringify({ ok: true }), { status: 200 })
     }
 
+    if (url === '/api/inbox/mark-all-read' && method === 'POST') {
+      let changedCount = 0
+      for (const item of inboxItems) {
+        if (!item.isRead) {
+          item.isRead = true
+          changedCount += 1
+        }
+      }
+      return new Response(JSON.stringify({ changedCount }), { status: 200 })
+    }
+
     if (url === '/api/inbox/clear-all' && method === 'POST') {
       const clearedNotifications = inboxItems.length
       const clearedReadStates = inboxItems.length
@@ -441,7 +452,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'People' })).toBeInTheDocument()
   })
 
-  it('creates a source config, syncs, and toggles read/unread', async () => {
+  it('creates a source config, syncs, and hides an item after marking it read', async () => {
     const mockApi = createMockApi()
     mockApi.inboxItems.push({
       id: 'gh-1',
@@ -501,10 +512,8 @@ describe('App', () => {
     expect(await screen.findByText(/Unread/)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Mark as read' }))
-    expect(await screen.findByRole('button', { name: 'Mark as unread' })).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Mark as unread' }))
-    expect(await screen.findByRole('button', { name: 'Mark as read' })).toBeInTheDocument()
+    expect(await screen.findByText("You're all caught up. No unread inbox items.")).toBeInTheDocument()
+    expect(screen.queryByText(/PR comment/)).not.toBeInTheDocument()
 
     await waitFor(() => {
       expect(mockApi.fetchMock).toHaveBeenCalledWith('/api/sync/manual', { method: 'POST' })
@@ -526,6 +535,74 @@ describe('App', () => {
     await user.click(screen.getByRole('link', { name: 'Inbox' }))
     await user.click(screen.getByRole('button', { name: 'Sync now' }))
     expect(await screen.findByText('Slack token rejected')).toBeInTheDocument()
+  })
+
+  it('marks all inbox items as read from Inbox controls', async () => {
+    const mockApi = createMockApi()
+    mockApi.inboxItems.push(
+      {
+        id: 'github-unread-1',
+        source: 'github',
+        title: 'Unread GitHub item',
+        occurredAt: '2026-01-14T11:00:00.000Z',
+        isRead: false,
+      },
+      {
+        id: 'slack-read-1',
+        source: 'slack',
+        title: 'Already read Slack item',
+        occurredAt: '2026-01-14T11:01:00.000Z',
+        isRead: true,
+      },
+      {
+        id: 'shortcut-unread-1',
+        source: 'shortcut',
+        title: 'Unread Shortcut item',
+        occurredAt: '2026-01-14T11:02:00.000Z',
+        isRead: false,
+      },
+    )
+    vi.stubGlobal('fetch', mockApi.fetchMock)
+    const user = userEvent.setup()
+    renderApp('/inbox')
+
+    expect(await screen.findByText('Unread GitHub item')).toBeInTheDocument()
+    expect(await screen.findByText('Unread Shortcut item')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Mark all as read' }))
+    expect(await screen.findByText('Marked 2 notification(s) as read.')).toBeInTheDocument()
+    expect(await screen.findByText("You're all caught up. No unread inbox items.")).toBeInTheDocument()
+    expect(screen.queryByText('Unread GitHub item')).not.toBeInTheDocument()
+    expect(screen.queryByText('Unread Shortcut item')).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(mockApi.fetchMock).toHaveBeenCalledWith('/api/inbox/mark-all-read', { method: 'POST' })
+    })
+  })
+
+  it('does not render read inbox items returned by persistence layer', async () => {
+    const mockApi = createMockApi()
+    mockApi.inboxItems.push(
+      {
+        id: 'read-item',
+        source: 'github',
+        title: 'Read item should stay hidden',
+        occurredAt: '2026-01-14T11:00:00.000Z',
+        isRead: true,
+      },
+      {
+        id: 'unread-item',
+        source: 'github',
+        title: 'Unread item should be visible',
+        occurredAt: '2026-01-14T11:01:00.000Z',
+        isRead: false,
+      },
+    )
+    vi.stubGlobal('fetch', mockApi.fetchMock)
+    renderApp('/inbox')
+
+    expect(await screen.findByText('Unread item should be visible')).toBeInTheDocument()
+    expect(screen.queryByText('Read item should stay hidden')).not.toBeInTheDocument()
   })
 
   it('syncs a single source from Settings and shows row status', async () => {
@@ -1132,7 +1209,7 @@ describe('App', () => {
     })
     await user.click(screen.getByRole('button', { name: 'Sync now' }))
 
-    expect(await screen.findByText('No inbox items yet.')).toBeInTheDocument()
+    expect(await screen.findByText("You're all caught up. No unread inbox items.")).toBeInTheDocument()
     expect(within(sourceFilters).getByRole('button', { name: 'Shortcut' })).toBeInTheDocument()
     expect(within(sourceFilters).getByRole('button', { name: 'GitHub' })).toBeInTheDocument()
   })
@@ -1187,7 +1264,7 @@ describe('App', () => {
     ).toBeInTheDocument()
 
     await user.click(screen.getByRole('link', { name: 'Inbox' }))
-    expect(await screen.findByText('No inbox items yet.')).toBeInTheDocument()
+    expect(await screen.findByText("You're all caught up. No unread inbox items.")).toBeInTheDocument()
 
     await waitFor(() => {
       expect(mockApi.fetchMock).toHaveBeenCalledWith('/api/inbox/clear-all', { method: 'POST' })
