@@ -1,3 +1,5 @@
+import { Moon, Sun } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import { Alert, AlertDescription, AlertTitle } from './components/ui/alert'
@@ -7,47 +9,89 @@ import { InboxPage } from './pages/inbox-page'
 import { SettingsPage } from './pages/settings-page'
 import { WorkPage } from './pages/work-page'
 
+type ThemeMode = 'light' | 'dark'
+const THEME_STORAGE_KEY = 'home-theme-mode'
+
+function getInitialThemeMode(): ThemeMode {
+  if (typeof window === 'undefined') return 'light'
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
+  if (stored === 'light' || stored === 'dark') return stored
+  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light'
+}
+
 function App() {
   const state = useHomeState()
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => getInitialThemeMode())
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.toggle('dark', themeMode === 'dark')
+    window.localStorage.setItem(THEME_STORAGE_KEY, themeMode)
+  }, [themeMode])
 
   return (
-    <main className="app">
-      <header className="topbar">
-        <div className="title-row">
-          <h1>Home</h1>
-          <nav className="route-nav" aria-label="Primary">
-            <NavLink
-              to="/inbox"
-              className={({ isActive }) => (isActive ? 'route-link route-link-active' : 'route-link')}
+    <main className="mx-auto flex w-full max-w-[1100px] flex-col gap-5 px-4 py-5 md:px-6">
+      <header className="rounded-xl border bg-card p-5 text-card-foreground shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-3">
+            <h1 className="text-3xl font-semibold tracking-tight">Home</h1>
+            <nav className="flex flex-wrap gap-2" aria-label="Primary">
+              {[
+                { to: '/inbox', label: 'Inbox' },
+                { to: '/work', label: 'Work' },
+                { to: '/settings', label: 'Settings' },
+              ].map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) =>
+                    [
+                      'inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium transition-colors',
+                      isActive ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-accent hover:text-accent-foreground',
+                    ].join(' ')
+                  }
+                >
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))
+              }}
+              aria-label={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              Inbox
-            </NavLink>
-            <NavLink
-              to="/work"
-              className={({ isActive }) => (isActive ? 'route-link route-link-active' : 'route-link')}
+              {themeMode === 'dark' ? (
+                <>
+                  <Sun aria-hidden="true" className="h-4 w-4" />
+                  Light
+                </>
+              ) : (
+                <>
+                  <Moon aria-hidden="true" className="h-4 w-4" />
+                  Dark
+                </>
+              )}
+            </Button>
+            <Button type="button" onClick={state.onSyncNow} disabled={state.isSyncing || state.isReplaying}>
+              {state.isSyncing ? 'Syncing...' : 'Sync now'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={state.onReplayNow}
+              disabled={state.isSyncing || state.isReplaying}
             >
-              Work
-            </NavLink>
-            <NavLink
-              to="/settings"
-              className={({ isActive }) => (isActive ? 'route-link route-link-active' : 'route-link')}
-            >
-              Settings
-            </NavLink>
-          </nav>
-        </div>
-        <div className="row-actions">
-          <Button type="button" onClick={state.onSyncNow} disabled={state.isSyncing || state.isReplaying}>
-            {state.isSyncing ? 'Syncing...' : 'Sync now'}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={state.onReplayNow}
-            disabled={state.isSyncing || state.isReplaying}
-          >
-            {state.isReplaying ? 'Replaying...' : 'Dev replay snapshots'}
-          </Button>
+              {state.isReplaying ? 'Replaying...' : 'Dev replay snapshots'}
+            </Button>
+          </div>
         </div>
       </header>
       {state.syncError ? (

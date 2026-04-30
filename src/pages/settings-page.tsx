@@ -57,10 +57,13 @@ type SettingsPageProps = {
 
 function SettingsSubnav() {
   const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
-    isActive ? 'route-link route-link-active' : 'route-link'
+    [
+      'inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium transition-colors',
+      isActive ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-accent hover:text-accent-foreground',
+    ].join(' ')
 
   return (
-    <nav className="route-nav" aria-label="Settings sections">
+    <nav className="flex flex-wrap gap-2" aria-label="Settings sections">
       <NavLink to="/settings/sources" className={navLinkClassName}>
         Sources
       </NavLink>
@@ -134,12 +137,12 @@ export function SettingsPage({
   syncHistory,
 }: SettingsPageProps) {
   return (
-    <div className="page-stack">
+    <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle>Settings</CardTitle>
         </CardHeader>
-        <CardContent className="panel-stack">
+        <CardContent className="space-y-3">
           <SettingsSubnav />
         </CardContent>
       </Card>
@@ -250,8 +253,8 @@ function SettingsSourcesPage(props: {
       <CardHeader>
         <CardTitle>Sources</CardTitle>
       </CardHeader>
-      <CardContent className="panel-stack">
-        <form className="source-form" onSubmit={props.onSaveSource}>
+      <CardContent className="space-y-4">
+        <form className="grid gap-3" onSubmit={props.onSaveSource}>
           <Label>
             Provider
             <Select
@@ -289,7 +292,7 @@ function SettingsSourcesPage(props: {
               }
             />
           </Label>
-          <Label className="checkbox-label">
+          <Label className="flex items-center gap-2">
             <Checkbox
               aria-label="Enabled"
               checked={props.sourceForm.enabled}
@@ -349,7 +352,7 @@ function SettingsSourcesPage(props: {
           ) : null}
           {props.sourceForm.source === 'github' ? (
             <>
-              <p>
+              <p className="text-sm text-muted-foreground">
                 Fine-grained PAT requirements: select each repository you want synced and grant repository permissions for
                 Issues (Read-only) and Pull requests (Read-only). Mentions are discovered through GitHub issue search.
               </p>
@@ -363,7 +366,7 @@ function SettingsSourcesPage(props: {
                   }
                 />
               </Label>
-              <Label className="checkbox-label">
+              <Label className="flex items-center gap-2">
                 <Checkbox
                   aria-label="Require involvement in addition to mentions"
                   checked={props.sourceForm.githubParticipating}
@@ -373,7 +376,7 @@ function SettingsSourcesPage(props: {
                 />
                 Require involvement in addition to mentions
               </Label>
-              <p>
+              <p className="text-sm text-muted-foreground">
                 When enabled, GitHub search requires both <code>mentions:&lt;your-login&gt;</code> and{' '}
                 <code>involves:&lt;your-login&gt;</code>.
               </p>
@@ -382,10 +385,10 @@ function SettingsSourcesPage(props: {
           <Button type="submit">Save source</Button>
         </form>
         <SettingsFeedback settingsError={props.settingsError} settingsNotice={props.settingsNotice} />
-        <p>
+        <p className="text-sm text-muted-foreground">
           Work sync is separate from notification cleanup. You can sync Work any time without deleting notifications.
         </p>
-        <div className="row-actions">
+        <div className="flex flex-wrap gap-2">
           <Button type="button" variant="destructive" onClick={() => setIsClearModalOpen(true)}>
             Clear all notifications
           </Button>
@@ -401,17 +404,22 @@ function SettingsSourcesPage(props: {
           </Button>
         </div>
         {isClearModalOpen ? (
-          <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="clear-all-heading">
+          <div
+            className="rounded-xl border bg-card p-4 shadow-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="clear-all-heading"
+          >
             <Card>
               <CardHeader>
                 <CardTitle id="clear-all-heading">Are you sure?</CardTitle>
               </CardHeader>
-              <CardContent className="panel-stack">
-                <p>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
                   This will permanently remove all inbox notifications and read state, clear sync history, and reset
                   per-source sync watermarks. Source settings stay intact.
                 </p>
-                <div className="row-actions">
+                <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" onClick={() => setIsClearModalOpen(false)}>
                     Cancel
                   </Button>
@@ -432,26 +440,26 @@ function SettingsSourcesPage(props: {
           </div>
         ) : null}
         {props.sourceConfigs.length === 0 ? (
-          <p>No sources configured yet.</p>
+          <p className="text-sm text-muted-foreground">No sources configured yet.</p>
         ) : (
-          <ul className="item-list">
+          <ul className="space-y-3">
             {props.sourceConfigs.map((config) => {
               const status = props.perSourceSyncStatus.get(`${config.source}:${config.instanceKey}`)
               const sourceKey = `${config.source}:${config.instanceKey}`
               return (
-                <li key={sourceKey} className="item-row">
-                  <div className="item-main">
-                    <strong>{config.displayName}</strong>
+                <li key={sourceKey} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-card p-4">
+                  <div className="grid gap-2">
+                    <strong className="text-sm font-semibold">{config.displayName}</strong>
                     <Badge variant={config.enabled ? 'default' : 'secondary'}>
                       {config.enabled ? 'Enabled' : 'Disabled'}
                     </Badge>
-                    <span className="item-meta">
+                    <span className="text-sm text-muted-foreground">
                       {config.source}/{config.instanceKey}
                     </span>
-                    {status ? <span className="item-meta">{status.label}</span> : null}
-                    {status?.error ? <span className="item-body">{status.error}</span> : null}
+                    {status ? <span className="text-sm text-muted-foreground">{status.label}</span> : null}
+                    {status?.error ? <span className="text-sm text-destructive">{status.error}</span> : null}
                   </div>
-                  <div className="row-actions">
+                  <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="outline" onClick={() => props.onEditSource(config)}>
                       Edit
                     </Button>
@@ -527,8 +535,8 @@ function SettingsProjectsPage(props: {
       <CardHeader>
         <CardTitle>Projects</CardTitle>
       </CardHeader>
-      <CardContent className="panel-stack">
-        <form className="source-form" onSubmit={props.onSaveProject}>
+      <CardContent className="space-y-4">
+        <form className="grid gap-3" onSubmit={props.onSaveProject}>
           <Label>
             Project name
             <Input
@@ -594,22 +602,24 @@ function SettingsProjectsPage(props: {
         </form>
         <SettingsFeedback settingsError={props.settingsError} settingsNotice={props.settingsNotice} />
         {props.projects.length === 0 ? (
-          <p>No projects configured yet.</p>
+          <p className="text-sm text-muted-foreground">No projects configured yet.</p>
         ) : (
-          <ul className="item-list">
+          <ul className="space-y-3">
             {props.projects.map((project) => (
-              <li key={project.id} className="item-row">
-                <div className="item-main">
-                  <strong>{project.name}</strong>
-                  <span className="item-meta">Shortcut source: {project.shortcutSourceConfigId ?? 'none'}</span>
-                  <span className="item-body">
+              <li key={project.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-card p-4">
+                <div className="grid gap-2">
+                  <strong className="text-sm font-semibold">{project.name}</strong>
+                  <span className="text-sm text-muted-foreground">
+                    Shortcut source: {project.shortcutSourceConfigId ?? 'none'}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
                     GitHub: {project.githubRepos.length > 0 ? project.githubRepos.join(', ') : 'none'}
                   </span>
-                  <span className="item-body">
+                  <span className="text-sm text-muted-foreground">
                     Slack: {project.slackChannelIds.length > 0 ? project.slackChannelIds.join(', ') : 'none'}
                   </span>
                 </div>
-                <div className="row-actions">
+                <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" onClick={() => props.onEditProject(project)}>
                     Edit
                   </Button>
@@ -641,9 +651,9 @@ function SettingsPeoplePage(props: {
       <CardHeader>
         <CardTitle>People</CardTitle>
       </CardHeader>
-      <CardContent className="panel-stack">
-        <form className="source-form" onSubmit={props.onSavePerson}>
-          <Label className="checkbox-label">
+      <CardContent className="space-y-4">
+        <form className="grid gap-3" onSubmit={props.onSavePerson}>
+          <Label className="flex items-center gap-2">
             <Checkbox
               aria-label="Is me"
               checked={props.personForm.isMe}
@@ -725,20 +735,20 @@ function SettingsPeoplePage(props: {
         </form>
         <SettingsFeedback settingsError={props.settingsError} settingsNotice={props.settingsNotice} />
         {props.people.length === 0 ? (
-          <p>No people configured yet.</p>
+          <p className="text-sm text-muted-foreground">No people configured yet.</p>
         ) : (
-          <ul className="item-list">
+          <ul className="space-y-3">
             {props.people.map((person) => (
-              <li key={person.id} className="item-row">
-                <div className="item-main">
-                  <strong>{person.name}</strong>
+              <li key={person.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-card p-4">
+                <div className="grid gap-2">
+                  <strong className="text-sm font-semibold">{person.name}</strong>
                   {person.isMe ? <Badge>Me</Badge> : null}
-                  <span className="item-meta">GitHub: {person.githubUsername ?? 'none'}</span>
-                  <span className="item-meta">Slack: {person.slackUsername ?? 'none'}</span>
-                  <span className="item-meta">Shortcut user ID: {person.shortcutUserId ?? 'none'}</span>
-                  <span className="item-meta">Shortcut handle: {person.shortcutHandle ?? 'none'}</span>
+                  <span className="text-sm text-muted-foreground">GitHub: {person.githubUsername ?? 'none'}</span>
+                  <span className="text-sm text-muted-foreground">Slack: {person.slackUsername ?? 'none'}</span>
+                  <span className="text-sm text-muted-foreground">Shortcut user ID: {person.shortcutUserId ?? 'none'}</span>
+                  <span className="text-sm text-muted-foreground">Shortcut handle: {person.shortcutHandle ?? 'none'}</span>
                 </div>
-                <div className="row-actions">
+                <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" onClick={() => props.onEditPerson(person)}>
                     Edit
                   </Button>
@@ -766,7 +776,7 @@ function SettingsSyncHistoryPage(props: {
       <CardHeader>
         <CardTitle>Sync history</CardTitle>
       </CardHeader>
-      <CardContent className="panel-stack">
+      <CardContent className="space-y-4">
         <SettingsFeedback settingsError={props.settingsError} settingsNotice={props.settingsNotice} />
         {props.syncHistoryError ? (
           <Alert variant="destructive">
@@ -775,7 +785,7 @@ function SettingsSyncHistoryPage(props: {
           </Alert>
         ) : null}
         {props.syncHistory.length === 0 ? (
-          <p>No sync history yet.</p>
+          <p className="text-sm text-muted-foreground">No sync history yet.</p>
         ) : (
           <Table>
             <TableHead>

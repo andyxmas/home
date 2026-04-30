@@ -1,29 +1,26 @@
-import { cva, type VariantProps } from 'class-variance-authority'
 import type { HTMLAttributes } from 'react'
 import { cn } from '../../lib/utils'
 
-const alertVariants = cva('ui-alert', {
-  variants: {
-    variant: {
-      default: 'ui-alert-default',
-      destructive: 'ui-alert-destructive',
-    },
-  },
-  defaultVariants: {
-    variant: 'default',
-  },
-})
-
-type AlertProps = HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
+type AlertProps = HTMLAttributes<HTMLDivElement> & { variant?: 'default' | 'destructive' }
 
 export function Alert({ className, variant, ...props }: AlertProps) {
-  return <div role="alert" className={cn(alertVariants({ variant }), className)} {...props} />
+  return (
+    <div
+      role="alert"
+      className={cn(
+        'relative w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground',
+        variant === 'destructive' && 'border-destructive/50 text-destructive',
+        className,
+      )}
+      {...props}
+    />
+  )
 }
 
 export function AlertTitle({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('ui-alert-title', className)} {...props} />
+  return <p className={cn('mb-1 font-medium leading-none tracking-tight', className)} {...props} />
 }
 
 export function AlertDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('ui-alert-description', className)} {...props} />
+  return <p className={cn('text-sm [&_p]:leading-relaxed', className)} {...props} />
 }

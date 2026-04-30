@@ -1,4 +1,5 @@
 import type { InboxItem } from '../api/inbox'
+import { ExternalLink } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
@@ -55,8 +56,8 @@ export function InboxPage({
       <CardHeader>
         <CardTitle>Inbox</CardTitle>
       </CardHeader>
-      <CardContent className="panel-stack">
-        <div className="row-actions" role="group" aria-label="Project filters">
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Project filters">
           <Button
             type="button"
             size="sm"
@@ -77,7 +78,7 @@ export function InboxPage({
             </Button>
           ))}
         </div>
-        <div className="row-actions" role="group" aria-label="Source filters">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Source filters">
           <Button
             type="button"
             size="sm"
@@ -98,7 +99,7 @@ export function InboxPage({
             </Button>
           ))}
         </div>
-        <div className="row-actions" role="group" aria-label="From filters">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="From filters">
           <Button
             type="button"
             size="sm"
@@ -119,7 +120,7 @@ export function InboxPage({
             </Button>
           ))}
         </div>
-        <div className="row-actions" role="group" aria-label="View mode">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="View mode">
           <Button
             type="button"
             size="sm"
@@ -137,7 +138,7 @@ export function InboxPage({
             Condensed
           </Button>
         </div>
-        <div className="row-actions" role="group" aria-label="Inbox actions">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Inbox actions">
           <Button
             type="button"
             size="sm"
@@ -161,13 +162,13 @@ export function InboxPage({
           </Alert>
         ) : null}
         {inboxItems.length === 0 ? (
-          <p>You're all caught up. No unread inbox items.</p>
+          <p className="text-sm text-muted-foreground">You're all caught up. No unread inbox items.</p>
         ) : (
-          <ul className="item-list">
+          <ul className="space-y-3">
             {inboxItems.map((item) => (
-              <li key={item.id} className="item-row">
-                <div className="item-main">
-                  <strong>{item.title}</strong>
+              <li key={item.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-card p-4">
+                <div className="grid gap-2">
+                  <strong className="text-sm font-semibold">{item.title}</strong>
                   <Badge variant={item.isRead ? 'secondary' : 'default'}>
                     {item.isRead ? 'Read' : 'Unread'}
                   </Badge>
@@ -177,29 +178,20 @@ export function InboxPage({
                     </Badge>
                   ) : null}
                   {item.fromPersonName ? <Badge variant="secondary">From: {item.fromPersonName}</Badge> : null}
-                  <div className="item-meta-row">
-                    <span className="item-meta">
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                    <span>
                       {item.source} - {formatTimestamp(item.occurredAt)}
                     </span>
                     {item.url ? (
                       <a
-                        className="item-link-icon"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                         href={item.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`Open ${item.source} notification link`}
                         title="Open original notification"
                       >
-                        <svg viewBox="0 0 20 20" aria-hidden="true">
-                          <path
-                            fill="currentColor"
-                            d="M11.5 3a.75.75 0 0 1 0-1.5h5A.75.75 0 0 1 17.25 2v5a.75.75 0 0 1-1.5 0V3.81l-6.22 6.22a.75.75 0 0 1-1.06-1.06l6.22-6.22H11.5Z"
-                          />
-                          <path
-                            fill="currentColor"
-                            d="M5.25 4.5A2.75 2.75 0 0 0 2.5 7.25v7.5a2.75 2.75 0 0 0 2.75 2.75h7.5a2.75 2.75 0 0 0 2.75-2.75V10.5a.75.75 0 0 0-1.5 0v4.25c0 .69-.56 1.25-1.25 1.25h-7.5C4.56 16 4 15.44 4 14.75v-7.5C4 6.56 4.56 6 5.25 6H9.5a.75.75 0 0 0 0-1.5H5.25Z"
-                          />
-                        </svg>
+                        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                       </a>
                     ) : null}
                   </div>
@@ -208,7 +200,7 @@ export function InboxPage({
                   ) : null}
                 </div>
                 {!isCondensed ? (
-                  <div className="item-actions">
+                  <div className="flex items-center gap-2">
                     <Button type="button" variant="outline" onClick={() => onToggleRead(item)}>
                       Mark as {item.isRead ? 'unread' : 'read'}
                     </Button>

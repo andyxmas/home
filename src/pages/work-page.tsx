@@ -1,10 +1,7 @@
 import { useMemo } from 'react'
 import type { WorkColumn, WorkItem } from '../domain/work'
-import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert'
-import { Badge } from '../components/ui/badge'
-import { Button } from '../components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { formatTimestamp } from '../features/home/use-home-state'
+import { ExternalLink, GripVertical } from 'lucide-react'
 import {
   DndContext,
   PointerSensor,
@@ -29,10 +26,10 @@ type ColumnModel = {
 }
 
 const columns: ColumnModel[] = [
-  { id: 'unassigned', title: 'Unassigned' },
   { id: 'today', title: 'Today' },
   { id: 'soon', title: 'Soon' },
   { id: 'later', title: 'Later' },
+  { id: 'unassigned', title: 'Unassigned' },
 ]
 
 function groupByColumn(items: WorkItem[]): Record<WorkColumn, WorkItem[]> {
@@ -104,19 +101,24 @@ export function WorkPage({ workItems, workError, onMoveWorkItem, onReorderWorkCo
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Work</CardTitle>
-      </CardHeader>
-      <CardContent className="panel-stack">
+    <section className="rounded-xl border bg-card text-card-foreground shadow-sm">
+      <header className="space-y-1 border-b p-6">
+        <h2 className="text-2xl font-semibold leading-none tracking-tight">Work</h2>
+      </header>
+      <div className="space-y-5 p-6">
         {workError ? (
-          <Alert variant="destructive">
-            <AlertTitle>Work error</AlertTitle>
-            <AlertDescription>{workError}</AlertDescription>
-          </Alert>
+          <div
+            role="alert"
+            className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-destructive"
+          >
+            <p className="font-semibold">Work error</p>
+            <p className="mt-1 text-sm">{workError}</p>
+          </div>
         ) : null}
-        {workItems.length === 0 ? <p>No work items yet.</p> : null}
-        <p>Shortcut sync initially lands items in Unassigned. Drag them into Today, Soon, or Later.</p>
+        {workItems.length === 0 ? <p className="text-sm text-muted-foreground">No work items yet.</p> : null}
+        <p className="text-sm text-muted-foreground">
+          Shortcut sync initially lands items in Unassigned. Drag them into Today, Soon, or Later.
+        </p>
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -124,22 +126,30 @@ export function WorkPage({ workItems, workError, onMoveWorkItem, onReorderWorkCo
             void onDragEnd(event)
           }}
         >
-          <div className="work-board" role="region" aria-label="Work board">
-            <div className="work-columns">
+          <div role="region" aria-label="Work board">
+            <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-4">
               {columns.map((column) => {
                 const items = grouped[column.id]
                 return (
-                  <section key={column.id} className="work-column" aria-label={column.title}>
-                    <header className="work-column-title">
-                      <strong>{column.title}</strong>
-                      <Badge variant="secondary">{items.length}</Badge>
+                  <section
+                    key={column.id}
+                    className="flex min-h-72 flex-col gap-4 rounded-xl border bg-muted/30 p-4"
+                    aria-label={column.title}
+                  >
+                    <header className="flex items-center justify-between gap-3">
+                      <strong className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+                        {column.title}
+                      </strong>
+                      <span className="inline-flex items-center rounded-md bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">
+                        {items.length}
+                      </span>
                     </header>
                     <SortableContext
                       id={column.id}
                       items={items.map((item) => item.id)}
                       strategy={verticalListSortingStrategy}
                     >
-                      <ol className="work-card-list" aria-label={`${column.title} items`}>
+                      <ol className="space-y-3" aria-label={`${column.title} items`}>
                         {items.map((item) => (
                           <WorkCard key={item.id} item={item} />
                         ))}
@@ -151,8 +161,8 @@ export function WorkPage({ workItems, workError, onMoveWorkItem, onReorderWorkCo
             </div>
           </div>
         </DndContext>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }
 
@@ -165,43 +175,44 @@ function WorkCard({ item }: { item: WorkItem }) {
   }
 
   return (
-    <li ref={setNodeRef} style={style} className="work-card">
-      <div className="work-card-main">
-        <div className="work-card-title-row">
-          <strong className="work-card-title">{item.title}</strong>
-          <Badge variant="secondary">{formatKind(item.kind)}</Badge>
+    <li ref={setNodeRef} style={style} className="rounded-lg border bg-card p-4 shadow-sm">
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <strong className="text-sm font-semibold leading-5">{item.title}</strong>
+          <span className="inline-flex shrink-0 items-center rounded-md bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">
+            {formatKind(item.kind)}
+          </span>
         </div>
-        <div className="item-meta-row">
-          <span className="item-meta">{item.source}</span>
-          <span className="item-meta">{formatTimestamp(item.updatedAt)}</span>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>{item.source}</span>
+          <span>•</span>
+          <span>{formatTimestamp(item.updatedAt)}</span>
           {item.url ? (
             <a
-              className="item-link-icon"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               href={item.url}
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Open work item link"
               title="Open link"
             >
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M11.5 3a.75.75 0 0 1 0-1.5h5A.75.75 0 0 1 17.25 2v5a.75.75 0 0 1-1.5 0V3.81l-6.22 6.22a.75.75 0 0 1-1.06-1.06l6.22-6.22H11.5Z"
-                />
-                <path
-                  fill="currentColor"
-                  d="M5.25 4.5A2.75 2.75 0 0 0 2.5 7.25v7.5a2.75 2.75 0 0 0 2.75 2.75h7.5a2.75 2.75 0 0 0 2.75-2.75V10.5a.75.75 0 0 0-1.5 0v4.25c0 .69-.56 1.25-1.25 1.25h-7.5C4.56 16 4 15.44 4 14.75v-7.5C4 6.56 4.56 6 5.25 6H9.5a.75.75 0 0 0 0-1.5H5.25Z"
-                />
-              </svg>
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
             </a>
           ) : null}
         </div>
-        {item.body ? <p className="work-card-body">{item.body}</p> : null}
+        {item.body ? <p className="text-sm leading-6 text-muted-foreground">{item.body}</p> : null}
       </div>
-      <div className="item-actions">
-        <Button type="button" size="sm" variant="outline" {...attributes} {...listeners} aria-label="Drag">
-          Drag
-        </Button>
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          {...attributes}
+          {...listeners}
+          aria-label="Drag work item"
+          title="Drag work item"
+        >
+          <GripVertical className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
     </li>
   )
