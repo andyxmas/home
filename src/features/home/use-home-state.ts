@@ -73,6 +73,7 @@ export type PersonFormState = {
   slackUsername: string
   shortcutUserId: string
   shortcutHandle: string
+  isMe: boolean
 }
 
 const defaultPersonFormState: PersonFormState = {
@@ -82,6 +83,7 @@ const defaultPersonFormState: PersonFormState = {
   slackUsername: '',
   shortcutUserId: '',
   shortcutHandle: '',
+  isMe: false,
 }
 
 export function formatTimestamp(isoDate: string | undefined): string {
@@ -155,6 +157,7 @@ function mapPersonToForm(person: Person): PersonFormState {
     slackUsername: person.slackUsername ?? '',
     shortcutUserId: person.shortcutUserId ?? '',
     shortcutHandle: person.shortcutHandle ?? person.shortcutUsername ?? '',
+    isMe: person.isMe ?? false,
   }
 }
 
@@ -501,6 +504,7 @@ export function useHomeState() {
         slackUsername: personForm.slackUsername.trim() || undefined,
         shortcutUserId: personForm.shortcutUserId.trim() || undefined,
         shortcutHandle: personForm.shortcutHandle.trim() || undefined,
+        isMe: personForm.isMe,
       })
       await refreshPeople()
       setPersonForm(defaultPersonFormState)

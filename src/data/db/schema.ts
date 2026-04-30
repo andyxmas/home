@@ -37,6 +37,7 @@ export const project = sqliteTable(
 export const person = sqliteTable('person', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
+  isMe: integer('is_me', { mode: 'boolean' }).notNull().default(false),
   githubUsername: text('github_username'),
   slackUsername: text('slack_username'),
   shortcutUserId: text('shortcut_user_id'),

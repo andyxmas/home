@@ -9,6 +9,7 @@ type PeopleResponse = {
 export type SavePersonInput = {
   id?: string
   name: string
+  isMe?: boolean
   githubUsername?: string
   slackUsername?: string
   shortcutUserId?: string

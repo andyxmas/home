@@ -34,6 +34,7 @@ CREATE TABLE `person` (
   `shortcut_user_id` text,
   `shortcut_handle` text,
   `shortcut_username` text,
+  `is_me` integer DEFAULT 0 NOT NULL,
   `created_at` integer NOT NULL,
   `updated_at` integer NOT NULL
 );

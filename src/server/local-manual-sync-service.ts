@@ -72,6 +72,7 @@ export type LocalHomeService = ManualSyncService & {
   upsertPerson(input: {
     id?: string
     name: string
+    isMe?: boolean
     githubUsername?: string
     slackUsername?: string
     shortcutUserId?: string
@@ -196,6 +197,7 @@ function applyPersonSchemaPatches(sqlite: Database.Database): void {
       shortcut_user_id text,
       shortcut_handle text,
       shortcut_username text,
+      is_me integer DEFAULT 0 NOT NULL,
       created_at integer NOT NULL,
       updated_at integer NOT NULL
     )
@@ -205,6 +207,7 @@ function applyPersonSchemaPatches(sqlite: Database.Database): void {
   const hasShortcutUserId = personColumns.some((column) => column.name === 'shortcut_user_id')
   const hasShortcutHandle = personColumns.some((column) => column.name === 'shortcut_handle')
   const hasShortcutUsername = personColumns.some((column) => column.name === 'shortcut_username')
+  const hasIsMe = personColumns.some((column) => column.name === 'is_me')
 
   if (!hasShortcutUserId) {
     sqlite.exec('ALTER TABLE person ADD COLUMN shortcut_user_id text')
@@ -214,6 +217,9 @@ function applyPersonSchemaPatches(sqlite: Database.Database): void {
   }
   if (!hasShortcutUsername) {
     sqlite.exec('ALTER TABLE person ADD COLUMN shortcut_username text')
+  }
+  if (!hasIsMe) {
+    sqlite.exec('ALTER TABLE person ADD COLUMN is_me integer DEFAULT 0 NOT NULL')
   }
 
   // Backfill split fields from the legacy single Shortcut identity field.
@@ -437,6 +443,7 @@ export function createLocalManualSyncService(): LocalHomeService {
       if (input.id) {
         await personRepository.update(input.id, {
           name: input.name,
+          isMe: input.isMe,
           githubUsername: input.githubUsername,
           slackUsername: input.slackUsername,
           shortcutUserId: input.shortcutUserId,
@@ -447,6 +454,7 @@ export function createLocalManualSyncService(): LocalHomeService {
       }
       return personRepository.create({
         name: input.name,
+        isMe: input.isMe,
         githubUsername: input.githubUsername,
         slackUsername: input.slackUsername,
         shortcutUserId: input.shortcutUserId,

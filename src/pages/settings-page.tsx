@@ -583,6 +583,19 @@ function SettingsPeoplePage(props: {
       </CardHeader>
       <CardContent className="panel-stack">
         <form className="source-form" onSubmit={props.onSavePerson}>
+          <Label className="checkbox-label">
+            <Checkbox
+              aria-label="Is me"
+              checked={props.personForm.isMe}
+              onChange={(event) =>
+                props.setPersonForm((current) => ({
+                  ...current,
+                  isMe: event.target.checked,
+                }))
+              }
+            />
+            Me (used for Shortcut assignment / code review matching)
+          </Label>
           <Label>
             Name
             <Input
@@ -659,6 +672,7 @@ function SettingsPeoplePage(props: {
               <li key={person.id} className="item-row">
                 <div className="item-main">
                   <strong>{person.name}</strong>
+                  {person.isMe ? <Badge>Me</Badge> : null}
                   <span className="item-meta">GitHub: {person.githubUsername ?? 'none'}</span>
                   <span className="item-meta">Slack: {person.slackUsername ?? 'none'}</span>
                   <span className="item-meta">Shortcut user ID: {person.shortcutUserId ?? 'none'}</span>
