@@ -10,6 +10,7 @@ export type PeopleService = {
     shortcutUserId?: string
     shortcutHandle?: string
     shortcutUsername?: string
+    isMe?: boolean
   }): Promise<string>
   deletePerson(personId: string): Promise<void>
 }
@@ -22,6 +23,7 @@ type PersonPayload = {
   shortcutUserId?: string
   shortcutHandle?: string
   shortcutUsername?: string
+  isMe?: boolean
 }
 
 function normalizeOptional(value: string | undefined): string | undefined {
@@ -69,6 +71,7 @@ export function createPeopleEndpoint(service: PeopleService) {
         shortcutUserId: normalizeOptional(payload.shortcutUserId),
         shortcutHandle: normalizeOptional(payload.shortcutHandle),
         shortcutUsername: normalizeOptional(payload.shortcutUsername),
+        isMe: payload.isMe ?? false,
       })
       return Response.json({ ok: true, personId }, { status: 200 })
     }
@@ -92,6 +95,7 @@ export function createPeopleEndpoint(service: PeopleService) {
         shortcutUserId: normalizeOptional(payload.shortcutUserId),
         shortcutHandle: normalizeOptional(payload.shortcutHandle),
         shortcutUsername: normalizeOptional(payload.shortcutUsername),
+        isMe: payload.isMe ?? false,
       })
       return Response.json({ ok: true, personId }, { status: 200 })
     }

@@ -5,6 +5,7 @@ import { Button } from './components/ui/button'
 import { useHomeState } from './features/home/use-home-state'
 import { InboxPage } from './pages/inbox-page'
 import { SettingsPage } from './pages/settings-page'
+import { WorkPage } from './pages/work-page'
 
 function App() {
   const state = useHomeState()
@@ -20,6 +21,12 @@ function App() {
               className={({ isActive }) => (isActive ? 'route-link route-link-active' : 'route-link')}
             >
               Inbox
+            </NavLink>
+            <NavLink
+              to="/work"
+              className={({ isActive }) => (isActive ? 'route-link route-link-active' : 'route-link')}
+            >
+              Work
             </NavLink>
             <NavLink
               to="/settings"
@@ -52,7 +59,8 @@ function App() {
         <Alert>
           <AlertDescription>
             Synced {state.result.totalSources} source(s). Success: {state.result.succeededSources}, Failed:{' '}
-            {state.result.failedSources}, Upserted notifications: {state.result.totalUpserted}.
+            {state.result.failedSources}, Upserted notifications: {state.result.totalUpserted}
+            {state.result.workSync ? `, Upserted work: ${state.result.workSync.totalUpserted}` : ''}.
           </AlertDescription>
         </Alert>
       ) : (
@@ -85,6 +93,7 @@ function App() {
               onSelectViewMode={state.setSelectedViewMode}
               onToggleRead={state.onToggleRead}
               onMarkAllRead={state.onMarkAllRead}
+              onMarkTodo={state.onMarkInboxItemTodo}
             />
           }
         />
@@ -112,6 +121,18 @@ function App() {
               onSelectViewMode={state.setSelectedViewMode}
               onToggleRead={state.onToggleRead}
               onMarkAllRead={state.onMarkAllRead}
+              onMarkTodo={state.onMarkInboxItemTodo}
+            />
+          }
+        />
+        <Route
+          path="/work"
+          element={
+            <WorkPage
+              workItems={state.workItems}
+              workError={state.workError}
+              onMoveWorkItem={state.onMoveWorkItem}
+              onReorderWorkColumn={state.onReorderWorkColumn}
             />
           }
         />
@@ -149,6 +170,10 @@ function App() {
               onDeletePerson={state.onDeletePerson}
               onClearNotifications={state.onClearNotifications}
               isClearingNotifications={state.isClearingNotifications}
+              onClearWorkItems={state.onClearWorkItems}
+              isClearingWorkItems={state.isClearingWorkItems}
+              onSyncShortcutWorkSource={state.onSyncShortcutWorkSource}
+              syncingWorkSourceKeys={state.syncingWorkSourceKeys}
               syncHistoryError={state.syncHistoryError}
               syncHistory={state.syncHistory}
             />

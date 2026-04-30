@@ -47,6 +47,10 @@ type SettingsPageProps = {
   onDeletePerson: (person: Person) => Promise<void>
   onClearNotifications: () => Promise<void>
   isClearingNotifications: boolean
+  onClearWorkItems: () => Promise<void>
+  isClearingWorkItems: boolean
+  onSyncShortcutWorkSource: (config: SourceConfig) => Promise<void>
+  syncingWorkSourceKeys: Record<string, boolean>
   syncHistoryError: string | null
   syncHistory: SyncHistoryEntry[]
 }
@@ -122,6 +126,10 @@ export function SettingsPage({
   onDeletePerson,
   onClearNotifications,
   isClearingNotifications,
+  onClearWorkItems,
+  isClearingWorkItems,
+  onSyncShortcutWorkSource,
+  syncingWorkSourceKeys,
   syncHistoryError,
   syncHistory,
 }: SettingsPageProps) {
@@ -156,6 +164,10 @@ export function SettingsPage({
               onDeleteSource={onDeleteSource}
               onClearNotifications={onClearNotifications}
               isClearingNotifications={isClearingNotifications}
+              onClearWorkItems={onClearWorkItems}
+              isClearingWorkItems={isClearingWorkItems}
+              onSyncShortcutWorkSource={onSyncShortcutWorkSource}
+              syncingWorkSourceKeys={syncingWorkSourceKeys}
               settingsError={settingsError}
               settingsNotice={settingsNotice}
             />
@@ -224,6 +236,10 @@ function SettingsSourcesPage(props: {
   onDeleteSource: (config: SourceConfig) => Promise<void>
   onClearNotifications: () => Promise<void>
   isClearingNotifications: boolean
+  onClearWorkItems: () => Promise<void>
+  isClearingWorkItems: boolean
+  onSyncShortcutWorkSource: (config: SourceConfig) => Promise<void>
+  syncingWorkSourceKeys: Record<string, boolean>
   settingsError: string | null
   settingsNotice: string | null
 }) {
@@ -315,6 +331,22 @@ function SettingsSourcesPage(props: {
               </Label>
             </>
           ) : null}
+          {props.sourceForm.source === 'shortcut' ? (
+            <Label>
+              Shortcut workflow states to include (comma-separated)
+              <Input
+                aria-label="Shortcut workflow state allowlist"
+                placeholder="💻 Ready for Work, ⚒ In Progress, ❌ Rejected Review"
+                value={props.sourceForm.shortcutAllowedWorkflowStatesText}
+                onChange={(event) =>
+                  props.setSourceForm((current) => ({
+                    ...current,
+                    shortcutAllowedWorkflowStatesText: event.target.value,
+                  }))
+                }
+              />
+            </Label>
+          ) : null}
           {props.sourceForm.source === 'github' ? (
             <>
               <p>
@@ -350,9 +382,22 @@ function SettingsSourcesPage(props: {
           <Button type="submit">Save source</Button>
         </form>
         <SettingsFeedback settingsError={props.settingsError} settingsNotice={props.settingsNotice} />
+        <p>
+          Work sync is separate from notification cleanup. You can sync Work any time without deleting notifications.
+        </p>
         <div className="row-actions">
           <Button type="button" variant="destructive" onClick={() => setIsClearModalOpen(true)}>
             Clear all notifications
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => {
+              void props.onClearWorkItems()
+            }}
+            disabled={props.isClearingWorkItems}
+          >
+            {props.isClearingWorkItems ? 'Clearing Work...' : 'Clear all Work items'}
           </Button>
         </div>
         {isClearModalOpen ? (
@@ -434,6 +479,21 @@ function SettingsSourcesPage(props: {
                     >
                       {props.replayingSourceKeys[sourceKey] ? 'Replaying...' : 'Dev replay'}
                     </Button>
+                    {config.source === 'shortcut' ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => props.onSyncShortcutWorkSource(config)}
+                        disabled={
+                          props.isSyncing ||
+                          props.syncingSourceKeys[sourceKey] ||
+                          props.replayingSourceKeys[sourceKey] ||
+                          props.syncingWorkSourceKeys[sourceKey]
+                        }
+                      >
+                        {props.syncingWorkSourceKeys[sourceKey] ? 'Syncing Work...' : 'Sync Work (dev)'}
+                      </Button>
+                    ) : null}
                     <Button type="button" variant="outline" onClick={() => props.onToggleEnabled(config)}>
                       {config.enabled ? 'Disable' : 'Enable'}
                     </Button>
@@ -583,6 +643,19 @@ function SettingsPeoplePage(props: {
       </CardHeader>
       <CardContent className="panel-stack">
         <form className="source-form" onSubmit={props.onSavePerson}>
+          <Label className="checkbox-label">
+            <Checkbox
+              aria-label="Is me"
+              checked={props.personForm.isMe}
+              onChange={(event) =>
+                props.setPersonForm((current) => ({
+                  ...current,
+                  isMe: event.target.checked,
+                }))
+              }
+            />
+            Me (used for Shortcut assignment / code review matching)
+          </Label>
           <Label>
             Name
             <Input
@@ -659,6 +732,7 @@ function SettingsPeoplePage(props: {
               <li key={person.id} className="item-row">
                 <div className="item-main">
                   <strong>{person.name}</strong>
+                  {person.isMe ? <Badge>Me</Badge> : null}
                   <span className="item-meta">GitHub: {person.githubUsername ?? 'none'}</span>
                   <span className="item-meta">Slack: {person.slackUsername ?? 'none'}</span>
                   <span className="item-meta">Shortcut user ID: {person.shortcutUserId ?? 'none'}</span>

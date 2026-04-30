@@ -1,9 +1,14 @@
 import type { SyncAllSourcesResult } from '../application/sync/sync-orchestrator'
+import type { syncShortcutWorkItems } from '../application/work/shortcut-work-sync-service'
 import type { SourceKind } from '../domain/notification'
 
+export type ManualSyncResult = SyncAllSourcesResult & {
+  workSync?: Awaited<ReturnType<typeof syncShortcutWorkItems>>
+}
+
 export type ManualSyncService = {
-  runManualSync(): Promise<SyncAllSourcesResult>
-  runManualSyncForSource(source: SourceKind, instanceKey: string): Promise<SyncAllSourcesResult>
+  runManualSync(): Promise<ManualSyncResult>
+  runManualSyncForSource(source: SourceKind, instanceKey: string): Promise<ManualSyncResult>
   runReplaySync(): Promise<SyncAllSourcesResult>
   runReplaySyncForSource(source: SourceKind, instanceKey: string): Promise<SyncAllSourcesResult>
 }

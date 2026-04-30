@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import type Database from 'better-sqlite3'
+import { eq } from 'drizzle-orm'
 import { createAdapterRegistry } from '../application/sync/adapter-registry'
 import {
   createClearNotificationsService,
@@ -17,8 +18,12 @@ import {
   createProjectRepository,
   createSourceConfigRepository,
   createSyncRunRepository,
+  createWorkRepository,
 } from '../data/repositories'
-import type { SourceConfig, SourceKind } from '../domain/notification'
+import { notification } from '../data/db/schema'
+import type { WorkColumn, WorkItem } from '../domain/work'
+import { syncShortcutWorkItems } from '../application/work/shortcut-work-sync-service'
+import { DEFAULT_SHORTCUT_ALLOWED_WORKFLOW_STATES, type SourceConfig, type SourceKind } from '../domain/notification'
 import type { Person } from '../domain/person'
 import type { Project, ProjectMetadata } from '../domain/project'
 import type { ManualSyncService } from './manual-sync-endpoint'
@@ -36,6 +41,7 @@ export type LocalHomeService = ManualSyncService & {
     token: string
     slackUserId?: string
     slackWorkspaceUrl?: string
+    shortcutAllowedWorkflowStates?: string[]
     githubApiBaseUrl?: string
     githubParticipating?: boolean
   }): Promise<void>
@@ -72,6 +78,7 @@ export type LocalHomeService = ManualSyncService & {
   upsertPerson(input: {
     id?: string
     name: string
+    isMe?: boolean
     githubUsername?: string
     slackUsername?: string
     shortcutUserId?: string
@@ -100,9 +107,20 @@ export type LocalHomeService = ManualSyncService & {
       sinceUsed?: string
     }>
   >
+
+  listWorkItems(): Promise<import('../domain/work').WorkItem[]>
+  createWorkFromNotification(input: { notificationId: string; column?: import('../domain/work').WorkColumn }): Promise<WorkItem>
+  moveWorkItem(input: { id: string; column: import('../domain/work').WorkColumn; position: number }): Promise<void>
+  reorderWorkColumn(input: { column: import('../domain/work').WorkColumn; orderedIds: string[] }): Promise<void>
+  clearAllWorkItems(): Promise<{ clearedWorkItems: number }>
+  syncShortcutWorkItems(instanceKey?: string): ReturnType<typeof syncShortcutWorkItems>
 }
 
 let singletonService: LocalHomeService | undefined
+
+function normalizeWorkColumn(column: WorkColumn | undefined, fallback: WorkColumn = 'unassigned'): WorkColumn {
+  return column === 'unassigned' || column === 'today' || column === 'soon' || column === 'later' ? column : fallback
+}
 
 function applyInitialMigrationIfNeeded(sqlite: Database.Database): void {
   const tableExists = sqlite
@@ -196,6 +214,7 @@ function applyPersonSchemaPatches(sqlite: Database.Database): void {
       shortcut_user_id text,
       shortcut_handle text,
       shortcut_username text,
+      is_me integer DEFAULT 0 NOT NULL,
       created_at integer NOT NULL,
       updated_at integer NOT NULL
     )
@@ -205,6 +224,7 @@ function applyPersonSchemaPatches(sqlite: Database.Database): void {
   const hasShortcutUserId = personColumns.some((column) => column.name === 'shortcut_user_id')
   const hasShortcutHandle = personColumns.some((column) => column.name === 'shortcut_handle')
   const hasShortcutUsername = personColumns.some((column) => column.name === 'shortcut_username')
+  const hasIsMe = personColumns.some((column) => column.name === 'is_me')
 
   if (!hasShortcutUserId) {
     sqlite.exec('ALTER TABLE person ADD COLUMN shortcut_user_id text')
@@ -214,6 +234,9 @@ function applyPersonSchemaPatches(sqlite: Database.Database): void {
   }
   if (!hasShortcutUsername) {
     sqlite.exec('ALTER TABLE person ADD COLUMN shortcut_username text')
+  }
+  if (!hasIsMe) {
+    sqlite.exec('ALTER TABLE person ADD COLUMN is_me integer DEFAULT 0 NOT NULL')
   }
 
   // Backfill split fields from the legacy single Shortcut identity field.
@@ -233,6 +256,29 @@ function applyPersonSchemaPatches(sqlite: Database.Database): void {
   }
 }
 
+function applyWorkItemSchemaPatches(sqlite: Database.Database): void {
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS work_item (
+      id text PRIMARY KEY NOT NULL,
+      kind text NOT NULL,
+      source text NOT NULL,
+      dedupe_key text NOT NULL,
+      external_id text,
+      title text NOT NULL,
+      body text,
+      url text,
+      project_id text,
+      column text NOT NULL,
+      position integer DEFAULT 0 NOT NULL,
+      created_at integer NOT NULL,
+      updated_at integer NOT NULL,
+      UNIQUE(dedupe_key),
+      FOREIGN KEY (project_id) REFERENCES project (id) ON DELETE SET NULL
+    )
+  `)
+  sqlite.exec('CREATE INDEX IF NOT EXISTS work_item_column_position_idx ON work_item (column, position)')
+}
+
 export function createLocalManualSyncService(): LocalHomeService {
   if (singletonService) {
     return singletonService
@@ -248,12 +294,14 @@ export function createLocalManualSyncService(): LocalHomeService {
   applySyncRunSchemaPatches(sqlite)
   applyProjectSchemaPatches(sqlite)
   applyPersonSchemaPatches(sqlite)
+  applyWorkItemSchemaPatches(sqlite)
 
   const sourceConfigRepository = createSourceConfigRepository(db)
   const notificationRepository = createNotificationRepository(db)
   const personRepository = createPersonRepository(db)
   const projectRepository = createProjectRepository(db)
   const syncRunRepository = createSyncRunRepository(db)
+  const workRepository = createWorkRepository(db)
   const clearNotificationsService = createClearNotificationsService({
     notificationRepository,
     syncRunRepository,
@@ -293,11 +341,42 @@ export function createLocalManualSyncService(): LocalHomeService {
   })
 
   singletonService = {
-    runManualSync() {
-      return orchestrator.syncAllSources()
+    async runManualSync() {
+      const result = await orchestrator.syncAllSources()
+      try {
+        const workSync = await syncShortcutWorkItems({
+          db,
+          workRepository,
+          personRepository,
+          projectRepository,
+          sourceConfigs: await sourceConfigRepository.listEnabled(),
+        })
+        return { ...result, workSync }
+      } catch (cause) {
+        // Non-fatal: work sync should not fail the main notification sync loop in v1.
+        console.warn('Work sync failed', cause)
+      }
+      return result
     },
-    runManualSyncForSource(source, instanceKey) {
-      return orchestrator.syncSingleSource({ source, instanceKey })
+    async runManualSyncForSource(source, instanceKey) {
+      const result = await orchestrator.syncSingleSource({ source, instanceKey })
+      if (source === 'shortcut') {
+        try {
+          const workSync = await syncShortcutWorkItems({
+            db,
+            workRepository,
+            personRepository,
+            projectRepository,
+            sourceConfigs: (await sourceConfigRepository.listEnabled()).filter(
+              (item) => item.source === 'shortcut' && item.instanceKey === instanceKey,
+            ),
+          })
+          return { ...result, workSync }
+        } catch (cause) {
+          console.warn('Work sync failed', cause)
+        }
+      }
+      return result
     },
     runReplaySync() {
       return orchestrator.replayAllSources()
@@ -326,7 +405,12 @@ export function createLocalManualSyncService(): LocalHomeService {
 
       if (input.source === 'shortcut') {
         credentials.service = {
-          shortcut: {},
+          shortcut: {
+            allowedWorkflowStates:
+              input.shortcutAllowedWorkflowStates && input.shortcutAllowedWorkflowStates.length > 0
+                ? input.shortcutAllowedWorkflowStates
+                : DEFAULT_SHORTCUT_ALLOWED_WORKFLOW_STATES,
+          },
         }
       }
 
@@ -413,6 +497,7 @@ export function createLocalManualSyncService(): LocalHomeService {
       if (input.id) {
         await personRepository.update(input.id, {
           name: input.name,
+          isMe: input.isMe,
           githubUsername: input.githubUsername,
           slackUsername: input.slackUsername,
           shortcutUserId: input.shortcutUserId,
@@ -423,6 +508,7 @@ export function createLocalManualSyncService(): LocalHomeService {
       }
       return personRepository.create({
         name: input.name,
+        isMe: input.isMe,
         githubUsername: input.githubUsername,
         slackUsername: input.slackUsername,
         shortcutUserId: input.shortcutUserId,
@@ -454,6 +540,78 @@ export function createLocalManualSyncService(): LocalHomeService {
         errorMessage: run.errorMessage ?? undefined,
         sinceUsed: run.sinceUsed ?? undefined,
       }))
+    },
+
+    async listWorkItems() {
+      const rows = await workRepository.listAll()
+      return rows
+    },
+
+    async createWorkFromNotification(input) {
+      const notificationRow = await db.query.notification.findFirst({
+        where: eq(notification.id, input.notificationId),
+      })
+      if (!notificationRow) {
+        throw new Error('Notification not found')
+      }
+
+      const column = normalizeWorkColumn(input.column, 'soon')
+      const dedupeKey = `work:notification_todo:${notificationRow.id}`
+
+      const saved = await workRepository.upsert({
+        kind: 'notification_todo',
+        source: 'notification',
+        dedupeKey,
+        externalId: notificationRow.id,
+        title: notificationRow.title,
+        body: notificationRow.body ?? undefined,
+        url: notificationRow.url ?? undefined,
+        projectId: notificationRow.projectId ?? undefined,
+        column,
+        position: Number.NaN,
+      })
+      return {
+        id: saved.id,
+        kind: saved.kind as WorkItem['kind'],
+        source: saved.source as WorkItem['source'],
+        dedupeKey: saved.dedupeKey,
+        externalId: saved.externalId ?? undefined,
+        title: saved.title,
+        body: saved.body ?? undefined,
+        url: saved.url ?? undefined,
+        projectId: saved.projectId ?? undefined,
+        column: saved.column as WorkColumn,
+        position: saved.position,
+        createdAt: saved.createdAt.toISOString(),
+        updatedAt: saved.updatedAt.toISOString(),
+      }
+    },
+
+    async moveWorkItem(input) {
+      const column = normalizeWorkColumn(input.column)
+      await workRepository.moveWorkItem(input.id, column, input.position)
+    },
+
+    async reorderWorkColumn(input) {
+      const column = normalizeWorkColumn(input.column)
+      await workRepository.reorderColumn(column, input.orderedIds)
+    },
+
+    async clearAllWorkItems() {
+      const clearedWorkItems = await workRepository.clearAll()
+      return { clearedWorkItems }
+    },
+
+    async syncShortcutWorkItems(instanceKey) {
+      return syncShortcutWorkItems({
+        db,
+        workRepository,
+        personRepository,
+        projectRepository,
+        sourceConfigs: (await sourceConfigRepository.listEnabled()).filter(
+          (config) => config.source === 'shortcut' && (!instanceKey || config.instanceKey === instanceKey),
+        ),
+      })
     },
   }
 

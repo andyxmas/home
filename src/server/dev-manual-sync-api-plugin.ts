@@ -7,6 +7,7 @@ import { createMarkAllReadEndpoint } from './mark-all-read-endpoint'
 import { createPeopleEndpoint } from './people-endpoint'
 import { createProjectEndpoint } from './project-endpoint'
 import { createSyncHistoryEndpoint } from './sync-history-endpoint'
+import { createWorkEndpoint } from './work-endpoint'
 import { createLocalManualSyncService } from './local-manual-sync-service'
 import type { SourceKind } from '../domain/notification'
 
@@ -18,6 +19,7 @@ type SourceConfigPayload = {
   token?: string
   slackUserId?: string
   slackWorkspaceUrl?: string
+  shortcutAllowedWorkflowStates?: string[]
   githubApiBaseUrl?: string
   githubParticipating?: boolean
 }
@@ -86,6 +88,7 @@ function createMiddleware(): Connect.NextHandleFunction {
   let handleProjects: ReturnType<typeof createProjectEndpoint> | undefined
   let handlePeople: ReturnType<typeof createPeopleEndpoint> | undefined
   let handleSyncHistory: ReturnType<typeof createSyncHistoryEndpoint> | undefined
+  let handleWork: ReturnType<typeof createWorkEndpoint> | undefined
   let localService: ReturnType<typeof createLocalManualSyncService> | undefined
 
   return async (req, res, next) => {
@@ -172,6 +175,30 @@ function createMiddleware(): Connect.NextHandleFunction {
           ? await readJsonBody<Record<string, unknown>>(req)
           : undefined
       const response = await handlePeople({
+        method,
+        url: `http://localhost${req.url}`,
+        async text() {
+          return body ? JSON.stringify(body) : ''
+        },
+      })
+      writeJsonResponse(res, await response.json(), response.status)
+      return
+    }
+
+    if (
+      pathname === '/api/work' ||
+      pathname === '/api/work/from-notification' ||
+      pathname === '/api/work/reorder' ||
+      pathname.startsWith('/api/work/')
+    ) {
+      if (!handleWork) {
+        handleWork = createWorkEndpoint(localService)
+      }
+      const body =
+        method === 'POST' || method === 'PUT' || method === 'PATCH'
+          ? await readJsonBody<Record<string, unknown>>(req)
+          : undefined
+      const response = await handleWork({
         method,
         url: `http://localhost${req.url}`,
         async text() {

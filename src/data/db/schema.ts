@@ -37,6 +37,7 @@ export const project = sqliteTable(
 export const person = sqliteTable('person', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
+  isMe: integer('is_me', { mode: 'boolean' }).notNull().default(false),
   githubUsername: text('github_username'),
   slackUsername: text('slack_username'),
   shortcutUserId: text('shortcut_user_id'),
@@ -145,6 +146,29 @@ export const archiveNotification = sqliteTable(
   ],
 )
 
+export const workItem = sqliteTable(
+  'work_item',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind').notNull(),
+    source: text('source').notNull(),
+    dedupeKey: text('dedupe_key').notNull(),
+    externalId: text('external_id'),
+    title: text('title').notNull(),
+    body: text('body'),
+    url: text('url'),
+    projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+    column: text('column').notNull(),
+    position: integer('position').notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [
+    unique().on(table.dedupeKey),
+    index('work_item_column_position_idx').on(table.column, table.position),
+  ],
+)
+
 export type SourceConfigRow = typeof sourceConfig.$inferSelect
 export type NotificationRow = typeof notification.$inferSelect
 export type NotificationStateRow = typeof notificationState.$inferSelect
@@ -152,5 +176,6 @@ export type SyncRunRow = typeof syncRun.$inferSelect
 export type ArchiveNotificationRow = typeof archiveNotification.$inferSelect
 export type ProjectRow = typeof project.$inferSelect
 export type PersonRow = typeof person.$inferSelect
+export type WorkItemRow = typeof workItem.$inferSelect
 export type ProjectGithubRepoRow = typeof projectGithubRepo.$inferSelect
 export type ProjectSlackChannelRow = typeof projectSlackChannel.$inferSelect

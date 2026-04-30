@@ -1,6 +1,7 @@
 export type Person = {
   id: string
   name: string
+  isMe: boolean
   githubUsername?: string
   slackUsername?: string
   shortcutUserId?: string

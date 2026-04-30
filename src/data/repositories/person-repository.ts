@@ -45,6 +45,7 @@ export function createPersonRepository(db: HomeDb, clock: Clock = defaultClock) 
       return rows.map((row) => ({
         id: row.id,
         name: row.name,
+        isMe: row.isMe,
         githubUsername: row.githubUsername ?? undefined,
         slackUsername: row.slackUsername ?? undefined,
         shortcutUserId: row.shortcutUserId ?? undefined,
@@ -55,8 +56,31 @@ export function createPersonRepository(db: HomeDb, clock: Clock = defaultClock) 
       }))
     },
 
+    async getMe() {
+      const row = await db.query.person.findFirst({
+        where: eq(person.isMe, true),
+        orderBy: [asc(person.createdAt)],
+      })
+      if (!row) {
+        return null
+      }
+      return {
+        id: row.id,
+        name: row.name,
+        isMe: row.isMe,
+        githubUsername: row.githubUsername ?? undefined,
+        slackUsername: row.slackUsername ?? undefined,
+        shortcutUserId: row.shortcutUserId ?? undefined,
+        shortcutHandle: row.shortcutHandle ?? row.shortcutUsername ?? undefined,
+        shortcutUsername: row.shortcutUsername ?? row.shortcutHandle ?? undefined,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      }
+    },
+
     async create(input: {
       name: string
+      isMe?: boolean
       githubUsername?: string
       slackUsername?: string
       shortcutUserId?: string
@@ -65,9 +89,13 @@ export function createPersonRepository(db: HomeDb, clock: Clock = defaultClock) 
     }): Promise<string> {
       const now = clock()
       const id = crypto.randomUUID()
+      if (input.isMe) {
+        await db.update(person).set({ isMe: false, updatedAt: now }).where(eq(person.isMe, true))
+      }
       await db.insert(person).values({
         id,
         name: input.name.trim(),
+        isMe: input.isMe ?? false,
         githubUsername: normalizeIdentity(input.githubUsername),
         slackUsername: normalizeIdentity(input.slackUsername),
         shortcutUserId: normalizeIdentity(input.shortcutUserId),
@@ -84,6 +112,7 @@ export function createPersonRepository(db: HomeDb, clock: Clock = defaultClock) 
       id: string,
       input: {
         name: string
+        isMe?: boolean
         githubUsername?: string
         slackUsername?: string
         shortcutUserId?: string
@@ -91,16 +120,21 @@ export function createPersonRepository(db: HomeDb, clock: Clock = defaultClock) 
         shortcutUsername?: string
       },
     ): Promise<void> {
+      const now = clock()
+      if (input.isMe) {
+        await db.update(person).set({ isMe: false, updatedAt: now }).where(eq(person.isMe, true))
+      }
       await db
         .update(person)
         .set({
           name: input.name.trim(),
+          isMe: input.isMe ?? false,
           githubUsername: normalizeIdentity(input.githubUsername),
           slackUsername: normalizeIdentity(input.slackUsername),
           shortcutUserId: normalizeIdentity(input.shortcutUserId),
           shortcutHandle: normalizeIdentity(input.shortcutHandle ?? input.shortcutUsername),
           shortcutUsername: normalizeIdentity(input.shortcutUsername ?? input.shortcutHandle),
-          updatedAt: clock(),
+          updatedAt: now,
         })
         .where(eq(person.id, id))
     },
