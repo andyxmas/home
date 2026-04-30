@@ -13,6 +13,7 @@ describe('people endpoint', () => {
         async upsertPerson(input: {
           id?: string
           name: string
+          isMe?: boolean
           githubUsername?: string
           slackUsername?: string
           shortcutUserId?: string
@@ -35,6 +36,7 @@ describe('people endpoint', () => {
           people.push({
             id,
             name: input.name,
+            isMe: input.isMe ?? false,
             githubUsername: input.githubUsername,
             slackUsername: input.slackUsername,
             shortcutUserId: input.shortcutUserId,

@@ -5,6 +5,7 @@ import { Button } from './components/ui/button'
 import { useHomeState } from './features/home/use-home-state'
 import { InboxPage } from './pages/inbox-page'
 import { SettingsPage } from './pages/settings-page'
+import { WorkPage } from './pages/work-page'
 
 function App() {
   const state = useHomeState()
@@ -20,6 +21,12 @@ function App() {
               className={({ isActive }) => (isActive ? 'route-link route-link-active' : 'route-link')}
             >
               Inbox
+            </NavLink>
+            <NavLink
+              to="/work"
+              className={({ isActive }) => (isActive ? 'route-link route-link-active' : 'route-link')}
+            >
+              Work
             </NavLink>
             <NavLink
               to="/settings"
@@ -112,6 +119,17 @@ function App() {
               onSelectViewMode={state.setSelectedViewMode}
               onToggleRead={state.onToggleRead}
               onMarkAllRead={state.onMarkAllRead}
+            />
+          }
+        />
+        <Route
+          path="/work"
+          element={
+            <WorkPage
+              workItems={state.workItems}
+              workError={state.workError}
+              onMoveWorkItem={state.onMoveWorkItem}
+              onReorderWorkColumn={state.onReorderWorkColumn}
             />
           }
         />

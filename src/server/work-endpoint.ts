@@ -3,7 +3,7 @@ import type { WorkColumn, WorkItem } from '../domain/work'
 export type WorkService = {
   listWorkItems(): Promise<WorkItem[]>
   createWorkFromNotification(input: { notificationId: string }): Promise<WorkItem>
-  moveWorkItem(input: { workItemId: string; column: WorkColumn; position: number }): Promise<void>
+  moveWorkItem(input: { id: string; column: WorkColumn; position: number }): Promise<void>
   reorderWorkColumn(input: { column: WorkColumn; orderedIds: string[] }): Promise<void>
 }
 
@@ -71,7 +71,7 @@ export function createWorkEndpoint(service: WorkService) {
       if (typeof position !== 'number' || !Number.isFinite(position) || position < 0) {
         return Response.json({ error: 'position must be a non-negative number.' }, { status: 400 })
       }
-      await service.moveWorkItem({ workItemId, column, position })
+      await service.moveWorkItem({ id: workItemId, column, position })
       return Response.json({ ok: true }, { status: 200 })
     }
 

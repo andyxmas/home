@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import type Database from 'better-sqlite3'
+import { eq } from 'drizzle-orm'
 import { createAdapterRegistry } from '../application/sync/adapter-registry'
 import {
   createClearNotificationsService,
@@ -19,6 +20,8 @@ import {
   createSyncRunRepository,
   createWorkRepository,
 } from '../data/repositories'
+import { notification } from '../data/db/schema'
+import type { WorkColumn, WorkItem } from '../domain/work'
 import type { SourceConfig, SourceKind } from '../domain/notification'
 import type { Person } from '../domain/person'
 import type { Project, ProjectMetadata } from '../domain/project'
@@ -104,26 +107,10 @@ export type LocalHomeService = ManualSyncService & {
     }>
   >
 
-  listWorkItems(): Promise<
-    Array<{
-      id: string
-      kind: string
-      source: string
-      dedupeKey: string
-      externalId?: string
-      title: string
-      body?: string
-      url?: string
-      projectId?: string
-      column: string
-      position: number
-      createdAt: string
-      updatedAt: string
-    }>
-  >
-  createWorkFromNotification(input: { notificationId: string; column?: string }): Promise<void>
-  moveWorkItem(input: { id: string; column: string; position: number }): Promise<void>
-  reorderWorkColumn(input: { column: string; orderedIds: string[] }): Promise<void>
+  listWorkItems(): Promise<import('../domain/work').WorkItem[]>
+  createWorkFromNotification(input: { notificationId: string; column?: import('../domain/work').WorkColumn }): Promise<WorkItem>
+  moveWorkItem(input: { id: string; column: import('../domain/work').WorkColumn; position: number }): Promise<void>
+  reorderWorkColumn(input: { column: import('../domain/work').WorkColumn; orderedIds: string[] }): Promise<void>
 }
 
 let singletonService: LocalHomeService | undefined
@@ -527,10 +514,11 @@ export function createLocalManualSyncService(): LocalHomeService {
         throw new Error('Notification not found')
       }
 
-      const column = input.column === 'today' || input.column === 'soon' || input.column === 'later' ? input.column : 'soon'
+      const column: WorkColumn =
+        input.column === 'today' || input.column === 'soon' || input.column === 'later' ? input.column : 'soon'
       const dedupeKey = `work:notification_todo:${notificationRow.id}`
 
-      await workRepository.upsert({
+      const saved = await workRepository.upsert({
         kind: 'notification_todo',
         source: 'notification',
         dedupeKey,
@@ -542,6 +530,21 @@ export function createLocalManualSyncService(): LocalHomeService {
         column,
         position: Number.NaN,
       })
+      return {
+        id: saved.id,
+        kind: saved.kind as WorkItem['kind'],
+        source: saved.source as WorkItem['source'],
+        dedupeKey: saved.dedupeKey,
+        externalId: saved.externalId ?? undefined,
+        title: saved.title,
+        body: saved.body ?? undefined,
+        url: saved.url ?? undefined,
+        projectId: saved.projectId ?? undefined,
+        column: saved.column as WorkColumn,
+        position: saved.position,
+        createdAt: saved.createdAt.toISOString(),
+        updatedAt: saved.updatedAt.toISOString(),
+      }
     },
 
     async moveWorkItem(input) {

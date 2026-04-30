@@ -12,6 +12,7 @@ import {
   setInboxReadState,
   type InboxItem,
 } from '../../api/inbox'
+import { listWorkItems, moveWorkItem, reorderWorkColumn } from '../../api/work'
 import { deletePerson, listPeople, savePerson } from '../../api/people'
 import { listSyncHistory, type SyncHistoryEntry } from '../../api/sync-history'
 import { deleteSourceConfig, listSourceConfigs, saveSourceConfig } from '../../api/sources'
@@ -20,6 +21,7 @@ import type { SyncAllSourcesResult } from '../../application/sync/sync-orchestra
 import type { SourceConfig, SourceKind } from '../../domain/notification'
 import type { Person } from '../../domain/person'
 import type { Project, ProjectMetadata } from '../../domain/project'
+import type { WorkColumn, WorkItem } from '../../domain/work'
 
 export type SourceFormState = {
   source: SourceKind
@@ -202,6 +204,8 @@ export function useHomeState() {
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
   const [inboxError, setInboxError] = useState<string | null>(null)
   const [inboxNotice, setInboxNotice] = useState<string | null>(null)
+  const [workItems, setWorkItems] = useState<WorkItem[]>([])
+  const [workError, setWorkError] = useState<string | null>(null)
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false)
   const [isClearingNotifications, setIsClearingNotifications] = useState(false)
   const [syncHistory, setSyncHistory] = useState<SyncHistoryEntry[]>([])
@@ -247,6 +251,17 @@ export function useHomeState() {
     setInboxItems(items)
   }
 
+  const refreshWork = async () => {
+    try {
+      const items = await listWorkItems()
+      setWorkItems(items)
+      setWorkError(null)
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Failed to load work items.'
+      setWorkError(message)
+    }
+  }
+
   const refreshSyncHistory = async () => {
     try {
       const history = await listSyncHistory({ limit: 50 })
@@ -261,7 +276,7 @@ export function useHomeState() {
   useEffect(() => {
     void (async () => {
       try {
-        await Promise.all([refreshSettings(), refreshProjects(), refreshInbox(), refreshSyncHistory()])
+        await Promise.all([refreshSettings(), refreshProjects(), refreshInbox(), refreshWork(), refreshSyncHistory()])
         await refreshPeople()
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause)
@@ -280,7 +295,7 @@ export function useHomeState() {
       applySourceStatuses(syncResult, 'Synced')
       setInboxError(null)
       setSyncHistoryError(null)
-      await Promise.all([refreshInbox(), refreshSyncHistory()])
+      await Promise.all([refreshInbox(), refreshWork(), refreshSyncHistory()])
     } catch (cause) {
       setResult(null)
       setSyncError(cause instanceof Error ? cause.message : 'Manual sync failed')
@@ -300,7 +315,7 @@ export function useHomeState() {
       applySourceStatuses(syncResult, 'Synced')
       setInboxError(null)
       setSyncHistoryError(null)
-      await Promise.all([refreshInbox(), refreshSyncHistory()])
+      await Promise.all([refreshInbox(), refreshWork(), refreshSyncHistory()])
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Source sync failed'
       setSourceSyncStatus((current) => ({
@@ -322,7 +337,7 @@ export function useHomeState() {
       applySourceStatuses(syncResult, 'Replayed')
       setInboxError(null)
       setSyncHistoryError(null)
-      await Promise.all([refreshInbox(), refreshSyncHistory()])
+      await Promise.all([refreshInbox(), refreshWork(), refreshSyncHistory()])
     } catch (cause) {
       setResult(null)
       setSyncError(cause instanceof Error ? cause.message : 'Replay sync failed')
@@ -342,7 +357,7 @@ export function useHomeState() {
       applySourceStatuses(syncResult, 'Replayed')
       setInboxError(null)
       setSyncHistoryError(null)
-      await Promise.all([refreshInbox(), refreshSyncHistory()])
+      await Promise.all([refreshInbox(), refreshWork(), refreshSyncHistory()])
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Source replay failed'
       setSourceSyncStatus((current) => ({
@@ -443,6 +458,28 @@ export function useHomeState() {
       await refreshInbox()
     } catch (cause) {
       setInboxError(cause instanceof Error ? cause.message : 'Failed to update read state.')
+    }
+  }
+
+  const onMoveWorkItem = async (input: { id: string; column: WorkColumn; position: number }) => {
+    setWorkError(null)
+    try {
+      await moveWorkItem(input)
+      await refreshWork()
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Failed to move work item.'
+      setWorkError(message)
+    }
+  }
+
+  const onReorderWorkColumn = async (input: { column: WorkColumn; orderedIds: string[] }) => {
+    setWorkError(null)
+    try {
+      await reorderWorkColumn(input)
+      await refreshWork()
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Failed to reorder work items.'
+      setWorkError(message)
     }
   }
 
@@ -663,6 +700,8 @@ export function useHomeState() {
     inboxItems: filteredInboxItems,
     inboxError,
     inboxNotice,
+    workItems,
+    workError,
     isMarkingAllRead,
     isClearingNotifications,
     syncHistory,
@@ -695,6 +734,8 @@ export function useHomeState() {
     onToggleEnabled,
     onToggleRead,
     onMarkAllRead,
+    onMoveWorkItem,
+    onReorderWorkColumn,
     onSaveProject,
     onEditProject,
     onDeleteProject,
