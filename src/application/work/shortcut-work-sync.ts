@@ -78,7 +78,7 @@ function isStoryInAllowedStates(story: ShortcutStory, allowed: string[]): boolea
   return allowed.some((allowedName) => allowedName === name)
 }
 
-function storyHasHandleTaskMention(story: ShortcutStory, handle: string): boolean {
+export function storyHasHandleTaskMention(story: ShortcutStory, handle: string): boolean {
   const normalized = handle.trim().replace(/^@/, '')
   if (!normalized) return false
   const needle = `@${normalized}`.toLowerCase()
@@ -192,5 +192,10 @@ export async function syncShortcutWork(config: SourceConfig, deps: ShortcutWorkS
       })
     }
   }
+}
+
+export const __testing = {
+  buildAllowedStates,
+  storyHasHandleTaskMention,
 }
 
